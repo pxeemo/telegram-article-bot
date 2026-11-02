@@ -1,0 +1,225 @@
+import { Api } from "grammy";
+
+/**
+ * Escapes special HTML characters so raw strings can safely be inserted into Telegram HTML messages.
+ */
+export function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Normalizes a target channel/chat identifier:
+ * - If it starts with '@' (e.g. '@channel') or '-' (numeric chat ID), returns as-is.
+ * - If it is purely numeric, returns as-is.
+ * - If it's a bare username without '@', prepends '@'.
+ */
+export function normalizeTargetChat(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return "";
+
+  if (trimmed.startsWith("@") || trimmed.startsWith("-")) {
+    return trimmed;
+  }
+
+  // If it's purely digits, it might be a positive chat ID
+  if (/^\d+$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Otherwise assume it's a channel/group username
+  return `@${trimmed}`;
+}
+
+export interface PermissionCheckResult {
+  allowed: boolean;
+  reason?: string;
+}
+
+/**
+ * Checks directly inside the target channel or chat if the user has message posting access.
+ * No hardcoded or fixed user IDs are needed.
+ */
+export async function checkUserChatPermissions(
+  api: Api,
+  targetChat: string | number,
+  userId: number
+): Promise<PermissionCheckResult> {
+  try {
+    const member = await api.getChatMember(targetChat, userId);
+
+    // 1. Channel/Chat Owner (Creator) has full message posting access
+    if (member.status === "creator") {
+      return { allowed: true };
+    }
+
+    // 2. Administrator
+    if (member.status === "administrator") {
+      // In broadcast channels, Telegram explicitly checks `can_post_messages`
+      if (member.can_post_messages === true) {
+        return { allowed: true };
+      }
+      if (member.can_post_messages === false) {
+        return {
+          allowed: false,
+          reason:
+            "You are an administrator in this channel, but your administrator role does not have permission to post messages.",
+        };
+      }
+      return { allowed: true };
+    }
+
+    // 3. Regular member
+    if (member.status === "member") {
+      const chat = await api.getChat(targetChat);
+      if (chat.type === "channel") {
+        return {
+          allowed: false,
+          reason:
+            "You are only a subscriber/member in this channel. Only administrators with message posting rights can publish messages.",
+        };
+      }
+      return { allowed: true };
+    }
+
+    // 4. Restricted member (groups/supergroups)
+    if (member.status === "restricted") {
+      if (member.can_send_messages) {
+        return { allowed: true };
+      }
+      return {
+        allowed: false,
+        reason: "You are restricted from sending messages in this chat.",
+      };
+    }
+
+    // 5. Left or kicked/banned
+    return {
+      allowed: false,
+      reason: "You are not a member of this channel or chat.",
+    };
+  } catch (err: any) {
+    const description = err?.description || err?.message || "Failed to inspect channel";
+    return {
+      allowed: false,
+      reason: `Could not verify your permissions: ${description}. Please ensure the bot is added as an Administrator in ${targetChat}.`,
+    };
+  }
+}
+
+export interface ProcessedTemplate {
+  html: string;
+  isRtl: boolean;
+}
+
+/**
+ * Hybrid RTL/LTR processor:
+ * 1. Checks explicit directives (<!-- rtl -->, #rtl, !rtl, [rtl], or <article dir="rtl"> / <div dir="rtl">).
+ * 2. Checks explicit directives in document captions (e.g. #rtl, dir=rtl).
+ * 3. Strips document wrapper boilerplate (<!DOCTYPE>, <html>, <head>, <body>).
+ * 4. Fallback to smart auto-detection: checks text for Arabic/Persian/Hebrew Unicode characters.
+ */
+export function processRichTemplate(
+  rawText: string,
+  captionHint?: string
+): ProcessedTemplate {
+  let text = rawText.trim();
+  let explicitRtl: boolean | null = null;
+
+  // 1. Check caption hint (useful when sending .html document with caption "#rtl")
+  if (captionHint) {
+    const hint = captionHint.trim().toLowerCase();
+    if (
+      hint.includes("#rtl") ||
+      hint.includes("!rtl") ||
+      hint.includes("dir=rtl") ||
+      hint.includes("rtl")
+    ) {
+      explicitRtl = true;
+    } else if (
+      hint.includes("#ltr") ||
+      hint.includes("!ltr") ||
+      hint.includes("dir=ltr") ||
+      hint.includes("ltr")
+    ) {
+      explicitRtl = false;
+    }
+  }
+
+  // 2. Check HTML comments at the top: <!-- rtl --> or <!-- ltr -->
+  const commentMatch = text.match(/^\s*<!--\s*(rtl|ltr)\s*-->/i);
+  if (commentMatch) {
+    if (explicitRtl === null) {
+      explicitRtl = commentMatch[1].toLowerCase() === "rtl";
+    }
+    text = text.replace(/^\s*<!--\s*(rtl|ltr)\s*-->/i, "").trim();
+  }
+
+  // Check prefix directives: #rtl, #ltr, !rtl, !ltr, [rtl], [ltr]
+  const prefixMatch = text.match(/^(?:#|!|\[)(rtl|ltr)(?:\])?\s*/i);
+  if (prefixMatch) {
+    if (explicitRtl === null) {
+      explicitRtl = prefixMatch[1].toLowerCase() === "rtl";
+    }
+    text = text.replace(/^(?:#|!|\[)(rtl|ltr)(?:\])?\s*/i, "").trim();
+  }
+
+  // Check wrapper tag attributes: <article dir="rtl">, <div dir="rtl">, <html dir="rtl">
+  const wrapperOpenMatch = text.match(
+    /^<(?:html|article|div|body|main|section)\s+[^>]*dir=["'](rtl|ltr)["'][^>]*>/i
+  );
+  if (wrapperOpenMatch) {
+    if (explicitRtl === null) {
+      explicitRtl = wrapperOpenMatch[1].toLowerCase() === "rtl";
+    }
+    text = text
+      .replace(
+        /^<(?:html|article|div|body|main|section)\s+[^>]*dir=["'](rtl|ltr)["'][^>]*>/i,
+        ""
+      )
+      .trim();
+    text = text
+      .replace(/<\/(?:html|article|div|body|main|section)>\s*$/i, "")
+      .trim();
+  }
+
+  // Clean full HTML document wrappers if user uploaded a complete .html document
+  text = text
+    .replace(/^\s*<!DOCTYPE[^>]*>/i, "")
+    .replace(/^\s*<html[^>]*>/i, "")
+    .replace(/<\/html>\s*$/i, "")
+    .replace(/^\s*<head>[\s\S]*?<\/head>/i, "")
+    .replace(/^\s*<body[^>]*>/i, "")
+    .replace(/<\/body>\s*$/i, "")
+    .trim();
+
+  // 3. Fallback to smart auto-detection if no explicit directive was given
+  let isRtl = false;
+  if (explicitRtl !== null) {
+    isRtl = explicitRtl;
+  } else {
+    // Strip HTML tags and code blocks to examine plain readable characters
+    const textWithoutTags = text
+      .replace(/<pre[\s\S]*?<\/pre>/gi, "")
+      .replace(/<code[\s\S]*?<\/code>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .trim();
+
+    // Arabic, Persian, Hebrew, Thaana, Syriac Unicode blocks
+    const rtlRegex = /[\u0591-\u07FF\uFB1D-\uFDFD\uFE70-\uFEFC]/;
+    const rtlChars = (textWithoutTags.match(new RegExp(rtlRegex, "g")) || []).length;
+    const ltrChars = (textWithoutTags.match(/[a-zA-Z]/g) || []).length;
+
+    if (rtlChars > 0) {
+      // If majority of letters or first 50 chars start with RTL
+      if (rtlChars >= ltrChars || rtlRegex.test(textWithoutTags.slice(0, 50))) {
+        isRtl = true;
+      }
+    }
+  }
+
+  return { html: text, isRtl };
+}
