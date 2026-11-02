@@ -1,4 +1,5 @@
 import { Api } from "grammy";
+import type { InputRichMessageMedia } from "@grammyjs/types";
 
 /**
  * Escapes special HTML characters so raw strings can safely be inserted into Telegram HTML messages.
@@ -113,14 +114,69 @@ export async function checkUserChatPermissions(
 export interface ProcessedTemplate {
   html: string;
   isRtl: boolean;
+  media?: InputRichMessageMedia<never>[];
 }
 
 /**
- * Hybrid RTL/LTR processor:
- * 1. Checks explicit directives (<!-- rtl -->, #rtl, !rtl, [rtl], or <article dir="rtl"> / <div dir="rtl">).
- * 2. Checks explicit directives in document captions (e.g. #rtl, dir=rtl).
+ * Scans HTML for any tg://(photo|video|audio|document)?id=... links.
+ * Converts raw Telegram file IDs or links into valid 1-64 character IDs,
+ * and generates the required InputRichMessageMedia array for Telegram Bot API.
+ */
+export function extractAndMapMedia(html: string): {
+  html: string;
+  media?: InputRichMessageMedia<never>[];
+} {
+  const mediaList: InputRichMessageMedia<never>[] = [];
+  const mediaMap = new Map<string, string>();
+  let counter = 1;
+
+  // Match tg://photo?id=..., tg://video?id=..., tg://audio?id=..., tg://document?id=...
+  const regex = /tg:\/\/(photo|video|audio|document)\?id=([^"'\s>]+)/gi;
+
+  const transformedHtml = html.replace(regex, (_match, rawType, rawId) => {
+    const type = rawType.toLowerCase();
+    const key = `${type}:${rawId}`;
+    let shortId = mediaMap.get(key);
+
+    if (!shortId) {
+      shortId = `m_${type.charAt(0)}_${counter++}`;
+      mediaMap.set(key, shortId);
+
+      let mediaItem: any = null;
+      if (type === "photo") {
+        mediaItem = { type: "photo", media: rawId };
+      } else if (type === "video") {
+        mediaItem = { type: "video", media: rawId };
+      } else if (type === "audio") {
+        mediaItem = { type: "audio", media: rawId };
+      } else if (type === "document") {
+        mediaItem = { type: "document", media: rawId };
+      }
+
+      if (mediaItem) {
+        mediaList.push({
+          id: shortId,
+          media: mediaItem,
+        });
+      }
+    }
+
+    return `tg://${type}?id=${shortId}`;
+  });
+
+  return {
+    html: transformedHtml,
+    media: mediaList.length > 0 ? mediaList : undefined,
+  };
+}
+
+/**
+ * Hybrid template processor:
+ * 1. Checks explicit RTL directives (<!-- rtl -->, #rtl, !rtl, [rtl], or <article dir="rtl">).
+ * 2. Checks explicit directives in document captions.
  * 3. Strips document wrapper boilerplate (<!DOCTYPE>, <html>, <head>, <body>).
  * 4. Fallback to smart auto-detection: checks text for Arabic/Persian/Hebrew Unicode characters.
+ * 5. Extracts any Telegram media (tg://...) and maps them to the required media array.
  */
 export function processRichTemplate(
   rawText: string,
@@ -221,5 +277,12 @@ export function processRichTemplate(
     }
   }
 
-  return { html: text, isRtl };
+  // 4. Extract and map media tags (tg://photo?id=..., tg://video?id=...)
+  const mediaMapping = extractAndMapMedia(text);
+
+  return {
+    html: mediaMapping.html,
+    isRtl,
+    media: mediaMapping.media,
+  };
 }

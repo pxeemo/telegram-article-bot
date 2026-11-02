@@ -110,26 +110,34 @@ Persian, Arabic, and Hebrew articles are automatically displayed RTL!
 &lt;/tg-button-row&gt;
 &lt;!-- Styles: primary | secondary | success | danger | link --&gt;</code></pre>
 
-<h2>Media Blocks</h2>
-<pre><code>&lt;img src="https://example.com/pic.jpg"/&gt;
+<h2>Media Blocks (Web URLs &amp; Telegram File IDs)</h2>
+<pre><code>&lt;!-- Web URLs --&gt;
+&lt;img src="https://example.com/pic.jpg"/&gt;
+&lt;video src="https://example.com/video.mp4"&gt;&lt;/video&gt;
+
+&lt;!-- Telegram Media (Send photos/videos/files to bot to get their tg:// tags) --&gt;
+&lt;img src="tg://photo?id=FILE_ID"/&gt;
+&lt;video src="tg://video?id=FILE_ID"&gt;&lt;/video&gt;
+&lt;audio src="tg://audio?id=FILE_ID"&gt;&lt;/audio&gt;
+&lt;tg-document src="tg://document?id=FILE_ID"&gt;&lt;/tg-document&gt;
+
 &lt;figure&gt;
-  &lt;img src="https://example.com/pic.jpg" tg-spoiler/&gt;
+  &lt;img src="tg://photo?id=FILE_ID" tg-spoiler/&gt;
   &lt;figcaption&gt;Caption &lt;cite&gt;Source&lt;/cite&gt;&lt;/figcaption&gt;
 &lt;/figure&gt;
-&lt;video src="https://example.com/video.mp4"&gt;&lt;/video&gt;
-&lt;audio src="https://example.com/sound.mp3"&gt;&lt;/audio&gt;
-&lt;tg-document src="https://example.com/doc.pdf"&gt;&lt;/tg-document&gt;
-&lt;tg-map lat="41.9028" long="12.4964" zoom="14"/&gt;
+
 &lt;tg-collage&gt;
-  &lt;img src="https://example.com/1.jpg"/&gt;
-  &lt;img src="https://example.com/2.jpg"/&gt;
-  &lt;figcaption&gt;Collage&lt;/figcaption&gt;
+  &lt;img src="tg://photo?id=FILE_ID_1"/&gt;
+  &lt;img src="tg://photo?id=FILE_ID_2"/&gt;
+  &lt;figcaption&gt;Collage caption&lt;/figcaption&gt;
 &lt;/tg-collage&gt;
+
 &lt;tg-slideshow&gt;
-  &lt;img src="https://example.com/1.jpg"/&gt;
-  &lt;img src="https://example.com/2.jpg"/&gt;
-  &lt;figcaption&gt;Slideshow&lt;/figcaption&gt;
-&lt;/tg-slideshow&gt;</code></pre>
+  &lt;img src="tg://photo?id=FILE_ID_1"/&gt;
+  &lt;img src="tg://photo?id=FILE_ID_2"/&gt;
+  &lt;figcaption&gt;Slideshow caption&lt;/figcaption&gt;
+&lt;/tg-slideshow&gt;
+&lt;tg-map lat="41.9028" long="12.4964" zoom="14"/&gt;</code></pre>
 
 <h2>Escaping &amp; Entities</h2>
 <pre><code>&amp;amp;lt;   = &lt;

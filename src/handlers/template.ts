@@ -4,14 +4,14 @@ import { GrammyError } from "grammy";
 
 /**
  * Shared renderer for Telegram Rich Messages (Articles).
- * Applies RTL detection and directive stripping.
+ * Applies RTL detection, document boilerplate cleanup, and Telegram media mapping.
  */
 export async function renderRichMessage(
   ctx: BotContext,
   rawContent: string,
   captionHint?: string
 ): Promise<void> {
-  const { html, isRtl } = processRichTemplate(rawContent, captionHint);
+  const { html, isRtl, media } = processRichTemplate(rawContent, captionHint);
 
   if (!html) {
     await ctx.reply("⚠️ The template is empty. Please provide HTML content.");
@@ -21,6 +21,7 @@ export async function renderRichMessage(
   try {
     await ctx.replyWithRichMessage({
       html,
+      media,
       is_rtl: isRtl,
     });
   } catch (error: any) {
@@ -55,7 +56,9 @@ export async function handleTextMessage(ctx: BotContext): Promise<void> {
 }
 
 /**
- * Handles incoming HTML documents (.html, .htm, .txt) and renders their contents.
+ * Handles incoming documents:
+ * - If .html/.htm/.txt: downloads and renders as a rich article template.
+ * - If other file (PDF, ZIP, etc.): generates an embeddable <tg-document> snippet for articles.
  */
 export async function handleDocumentMessage(ctx: BotContext): Promise<void> {
   const document = ctx.message?.document;
@@ -64,7 +67,7 @@ export async function handleDocumentMessage(ctx: BotContext): Promise<void> {
   const fileName = document.file_name?.toLowerCase() || "";
   const mimeType = document.mime_type?.toLowerCase() || "";
 
-  // Check if the uploaded file is an HTML or text file
+  // Check if the uploaded file is an HTML or text template file
   const isHtmlFile =
     fileName.endsWith(".html") ||
     fileName.endsWith(".htm") ||
@@ -72,10 +75,21 @@ export async function handleDocumentMessage(ctx: BotContext): Promise<void> {
     mimeType.includes("html") ||
     mimeType.includes("text");
 
+  // If it's a non-HTML file (PDF, ZIP, image, etc.), return the embeddable tag snippet!
   if (!isHtmlFile) {
+    const fileId = document.file_id;
+    const snippet = `<tg-document src="tg://document?id=${fileId}"></tg-document>`;
+    const figureSnippet = `<figure>\n  <tg-document src="tg://document?id=${fileId}"></tg-document>\n  <figcaption>${escapeHtml(
+      document.file_name || "Attachment"
+    )} <cite>Download</cite></figcaption>\n</figure>`;
+
     await ctx.reply(
-      `⚠️ <b>Unsupported File Type</b>\n` +
-        `Please send an <code>.html</code> or <code>.htm</code> document containing your rich article template.`,
+      `📄 <b>File Received (${escapeHtml(document.file_name || "Document")})!</b>\n\n` +
+        `<b>Tag for your Article (tap to copy):</b>\n` +
+        `<code>${escapeHtml(snippet)}</code>\n\n` +
+        `<b>Figure with Caption:</b>\n` +
+        `<pre><code>${escapeHtml(figureSnippet)}</code></pre>\n\n` +
+        `💡 <i>Copy and paste this tag inside your HTML text or template!</i>`,
       { parse_mode: "HTML" }
     );
     return;

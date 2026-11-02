@@ -4,6 +4,7 @@ import { startCommand, idCommand } from "./commands/start";
 import { helpCommand } from "./commands/help";
 import { sendCommand } from "./commands/send";
 import { handleTextMessage, handleDocumentMessage } from "./handlers/template";
+import { handleMediaMessage } from "./handlers/media";
 
 /**
  * Initializes and configures the grammY bot instance.
@@ -23,12 +24,24 @@ export function createBot(env: Env): Bot<BotContext> {
   bot.command("id", idCommand);
   bot.command("send", sendCommand);
 
-  // Register handlers for incoming rich messages:
-  // 1. Direct text messages
+  // Register handlers:
+  // 1. Direct text messages (HTML rich article templates)
   bot.on("message:text", handleTextMessage);
 
-  // 2. Uploaded HTML documents (.html, .htm, .txt)
+  // 2. Uploaded documents (.html/.htm/.txt templates OR other files to get <tg-document> tag)
   bot.on("message:document", handleDocumentMessage);
+
+  // 3. Media uploads (photos, videos, GIFs, audio, voice) -> returns copy-pasteable tg:// tag
+  bot.on(
+    [
+      "message:photo",
+      "message:video",
+      "message:animation",
+      "message:audio",
+      "message:voice",
+    ],
+    handleMediaMessage
+  );
 
   // Global error handler
   bot.catch((err) => {
