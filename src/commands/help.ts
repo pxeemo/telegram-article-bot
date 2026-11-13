@@ -8,55 +8,53 @@ export const GENERAL_HELP_TEXT = `
 
 <h3>1. Composing &amp; Previewing Articles</h3>
 <p>• <b>Direct Text:</b> Send any HTML text into the chat to preview it as a rich article.</p>
-<p>• <b>Template Files:</b> You can upload a template file. <i>Tip:</i> Telegram clients often block uploading <code>.html</code> files for security reasons — simply rename your file to <code>.txt</code> (e.g. <code>post.txt</code>) and send it as a document!</p>
+<p>• <b>Template Files:</b> You can upload <code>.html</code> or <code>.txt</code> template files as documents.</p>
 
 <hr/>
 
 <h3>2. Text Direction (RTL / LTR)</h3>
 <p>• <b>Automatic:</b> Persian, Arabic, and Hebrew articles are automatically detected and rendered Right-to-Left (RTL).</p>
-<p>• <b>Manual Override:</b> Put <code>#rtl</code> or <code><!-- rtl --></code> at the very beginning of your template to force RTL, or <code>#ltr</code> to force LTR.</p>
+<p>• <b>Manual Override:</b> Put <code>#rtl</code> or <code>&lt;!-- rtl --&gt;</code> at the very beginning of your template to force RTL, or <code>#ltr</code> to force LTR.</p>
 
 <hr/>
 
 <h3>3. Embedding Media &amp; Files</h3>
-<p>Send any <b>photo, video, GIF, audio, or document</b> to this bot. The bot will instantly reply with an exact <code>&lt;img src="tg://photo?id=..."/&gt;</code> code snippet formatted as a code block for easy copying!</p>
+<p>Send any <b>photo, video, GIF, audio, or document</b> to this bot. The bot will instantly reply with an exact <code>&lt;img src="tg://photo?id=..."/&gt;</code> code snippet formatted for easy copying!</p>
 
 <hr/>
 
-<h3>4. Publishing to Channels (/send) &amp; Sending as Replies</h3>
+<h3>4. Publishing to Channels &amp; Sending as Replies</h3>
 <p>Reply to any rendered preview output from the bot with:</p>
 <pre><code>/send @your_channel</code></pre>
-<p><b>Sending as a Reply to a Specific Post:</b></p>
-<p>You can send the article as a reply to an existing channel post using any of these methods:</p>
+
+<p><b>Replying to a Specific Post:</b></p>
+<p>Copy the post link in Telegram (tap/right-click post &rarr; <i>Copy Link</i>) and send:</p>
+<pre><code>/send @your_channel https://t.me/your_channel/123</code></pre>
+<p>• <b>Cross-channel replies:</b> You can also reply to posts from another channel:</p>
+<pre><code>/send @your_channel https://t.me/other_channel/123</code></pre>
+<p>• <b>Shortcut:</b> If publishing to the same channel as the replied post, you can simply use:</p>
+<pre><code>/send https://t.me/your_channel/123</code></pre>
+
+<p><b>Private Channels (Numeric ID):</b></p>
+<p>For private channels without a public username, publish using their numeric ID starting with <code>-100</code>:</p>
+<pre><code>/send -1001234567890</code></pre>
+<p><b>How to get your private channel ID:</b></p>
 <ul>
-  <li><b>In the /send command:</b>
-    <pre><code>/send @your_channel 123
-/send https://t.me/your_channel/123</code></pre>
-  </li>
-  <li><b>Inside the HTML template itself:</b>
-    <pre><code>&lt;reply to="123"/&gt;
-&lt;reply to="https://t.me/your_channel/123"/&gt;</code></pre>
-  </li>
+  <li><b>Forward a Post:</b> Forward any post from your private channel directly to this bot — the bot will instantly reply with its Chat ID and <code>/send</code> command!</li>
+  <li><b>From Post Link:</b> Tap/right-click any post in your channel &rarr; <i>Copy Link</i> (e.g. <code>https://t.me/c/1234567890/42</code>). Prepend <code>-100</code> to the first number to get your channel ID: <code>-1001234567890</code>.</li>
 </ul>
 
 <hr/>
 
-<h3>5. How to Schedule Messages</h3>
-<p>You can schedule channel posts using Telegram's built-in message scheduler:</p>
-<ol>
-  <li>Reply to the bot's rendered article with <code>/send @your_channel</code> (and optional reply ID).</li>
-  <li><b>Desktop:</b> Right-click the send button (arrow) and select <b>"Schedule message..."</b>.</li>
-  <li><b>Mobile (iOS / Android):</b> Long-press the send button (arrow) and select <b>"Schedule message"</b>.</li>
-  <li>Pick your desired date and time.</li>
-</ol>
-<p>Telegram will hold the command and automatically send it to the bot at the exact scheduled moment. The bot will verify permissions and post the article to your channel on time!</p>
+<p>💡 <b>Tip — Scheduling Messages:</b> When sending <code>/send</code>, right-click (desktop) or long-press (mobile) the send arrow and choose <b>Schedule message</b> to publish automatically at a future date and time.</p>
 
 <hr/>
 
 <h3>Bot Commands:</h3>
-<p>• <code>/help</code> — This general usage guide.<br/>
-• <code>/cheatsheet</code> — Full HTML tags cheatsheet with collapsible categories.<br/>
-• <code>/start</code> — Introduction and welcome message.</p>
+<p>• /help — This general usage guide.<br/>
+• /cheatsheet — Full HTML tags cheatsheet with collapsible categories.<br/>
+• /id — Get chat or forwarded channel ID.<br/>
+• /start — Introduction and welcome message.</p>
 `;
 
 export async function helpCommand(ctx: BotContext): Promise<void> {

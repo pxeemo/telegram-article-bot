@@ -4,6 +4,7 @@ import { startCommand } from "./commands/start";
 import { helpCommand } from "./commands/help";
 import { cheatsheetCommand } from "./commands/cheatsheet";
 import { sendCommand } from "./commands/send";
+import { idCommand, handleForwardedChannel } from "./commands/id";
 import { handleTextMessage, handleDocumentMessage } from "./handlers/template";
 import { handleMediaMessage } from "./handlers/media";
 
@@ -23,7 +24,11 @@ export function createBot(env: Env): Bot<BotContext> {
   bot.command("start", startCommand);
   bot.command("help", helpCommand);
   bot.command("cheatsheet", cheatsheetCommand);
+  bot.command("id", idCommand);
   bot.command("send", sendCommand);
+
+  // Handle forwarded posts from channels in private chat to provide channel ID
+  bot.use(handleForwardedChannel);
 
   // Register handlers:
   // 1. Direct text messages (HTML rich article templates)

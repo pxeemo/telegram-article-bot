@@ -21,14 +21,18 @@ A Telegram bot built with **grammY** and **TypeScript**, powered by **Bun**, and
    - Reply to any rendered bot output with `/send @channel_username` or `/send -100xxxxxxxxxx`.
    - **No Forward Tags:** Copies the article directly to the channel using `copyMessage` without any forward headers or quote attribution.
    - **Send as Reply to a Specific Post:**
-     - In the command: `/send @channel 123` or `/send https://t.me/channel/123`
-     - Inside the template: `<reply to="123"/>` or `<reply to="https://t.me/channel/123"/>`
+     - Same channel: `/send @channel https://t.me/channel/123` or simply `/send https://t.me/channel/123`
+     - Cross-channel replies: `/send @channel https://t.me/otherchannel/123`
+   - **Private Channels Support:**
+     - Forward any post from your private channel directly to the bot to get its numeric channel ID (e.g. `-1001234567890`).
+     - Or copy any message link (`t.me/c/1234567890/42`) and prepend `-100` to the first number.
    - **In-Channel Permission Verification:** Checks directly in the target channel via `getChatMember` whether the caller is the channel Owner (`creator`) or an Administrator with `can_post_messages` enabled.
    - **Native Scheduled Messages:** Schedule your `/send` command using Telegram's native message scheduler (Desktop: right-click send arrow -> "Schedule message..."; Mobile: long-press send arrow -> "Schedule message").
 4. **Commands:**
    - `/start`: Simple and brief rich introduction.
-   - `/help`: General usage guide, media workflow, reply options, and scheduling instructions.
+   - `/help`: General usage guide, media workflow, reply options, and private channel instructions.
    - `/cheatsheet`: Interactive HTML cheatsheet with collapsible categories (`<details>`) and clean code snippets without HTML comments.
+   - `/id`: Get user ID, chat ID, or forwarded channel details.
 
 ---
 

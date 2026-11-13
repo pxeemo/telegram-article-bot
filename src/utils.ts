@@ -13,83 +13,139 @@ export function escapeHtml(str: string): string {
 }
 
 /**
+ * Parses a Telegram post or channel link into target chat and optional message ID.
+ * Supports:
+ * - Public: https://t.me/channel/123 or https://t.me/channel
+ * - Private: https://t.me/c/1234567890/123 or https://t.me/c/1234567890
+ * - Forum topics: https://t.me/c/1234567890/10/123
+ */
+export function parseTelegramMessageLink(
+  link: string
+): { chat: string; messageId?: number } | null {
+  const trimmed = link.trim().split("?")[0].split("#")[0];
+
+  // Match private channel links: https://t.me/c/1234567890/123 or https://t.me/c/1234567890
+  const privateMatch = trimmed.match(
+    /^(?:https?:\/\/)?(?:www\.)?t\.me\/c\/(\d+)(?:\/(\d+))?(?:\/(\d+))?\/?$/i
+  );
+  if (privateMatch) {
+    const chat = `-100${privateMatch[1]}`;
+    const msgIdStr = privateMatch[3] || privateMatch[2];
+    const messageId = msgIdStr ? parseInt(msgIdStr, 10) : undefined;
+    return {
+      chat,
+      messageId: messageId && !isNaN(messageId) ? messageId : undefined,
+    };
+  }
+
+  // Match public channel/chat links: https://t.me/channel/123 or https://t.me/channel
+  const publicMatch = trimmed.match(
+    /^(?:https?:\/\/)?(?:www\.)?t\.me\/([a-zA-Z0-9_]+)(?:\/(\d+))?(?:\/(\d+))?\/?$/i
+  );
+  if (publicMatch) {
+    const chat = `@${publicMatch[1]}`;
+    const msgIdStr = publicMatch[3] || publicMatch[2];
+    const messageId = msgIdStr ? parseInt(msgIdStr, 10) : undefined;
+    return {
+      chat,
+      messageId: messageId && !isNaN(messageId) ? messageId : undefined,
+    };
+  }
+
+  return null;
+}
+
+/**
  * Normalizes a target channel/chat identifier:
+ * - If it's a Telegram link (t.me/...), extracts the chat identifier.
  * - If it starts with '@' (e.g. '@channel') or '-' (numeric chat ID), returns as-is.
- * - If it is purely numeric, returns as-is.
- * - If it's a bare username without '@', prepends '@'.
+ * - If it is purely numeric with 9+ digits, assumes a channel internal ID and prepends '-100'.
+ * - Otherwise assumes it's a bare username without '@' and prepends '@'.
  */
 export function normalizeTargetChat(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return "";
 
+  const link = parseTelegramMessageLink(trimmed);
+  if (link) {
+    return link.chat;
+  }
+
   if (trimmed.startsWith("@") || trimmed.startsWith("-")) {
     return trimmed;
   }
 
-  // If it's purely digits, it might be a positive chat ID
+  // If it's pure digits with 9+ digits, user might have copied channel ID without -100
+  if (/^\d{9,}$/.test(trimmed)) {
+    return `-100${trimmed}`;
+  }
+
   if (/^\d+$/.test(trimmed)) {
     return trimmed;
   }
 
-  // Otherwise assume it's a channel/group username
   return `@${trimmed}`;
 }
 
 export interface TargetAndReply {
   target: string;
   replyId?: number;
+  replyChat?: string;
 }
 
 /**
- * Parses user input for /send to extract target chat and optional reply message ID.
+ * Parses user input for /send to extract target chat, optional reply message ID, and reply chat.
  * Supports:
- * - Telegram post URLs: https://t.me/channel/123 or https://t.me/c/123456789/123
- * - Space-separated: @channel 123
- * - Plain channel: @channel or -100xxxxxxxxxx
+ * - Direct post links: https://t.me/channel/123 or https://t.me/c/1234567890/123
+ * - Cross-channel replies: @channel https://t.me/otherchannel/123
+ * - Same-channel replies: @channel https://t.me/channel/123 or @channel 123
+ * - Plain target: @channel or -100xxxxxxxxxx
  */
 export function parseTargetAndReply(input: string): TargetAndReply {
   const trimmed = input.trim();
   if (!trimmed) return { target: "" };
 
-  // 1. Check if input contains a Telegram post link:
-  // e.g. https://t.me/mychannel/456 or https://t.me/c/1234567890/456
-  const linkMatch = trimmed.match(
-    /(?:https?:\/\/)?(?:www\.)?t\.me\/(?:c\/(\d+)|([a-zA-Z0-9_]+))\/(\d+)/i
-  );
-  if (linkMatch) {
-    const isPrivate = !!linkMatch[1];
-    const targetChat = isPrivate ? `-100${linkMatch[1]}` : `@${linkMatch[2]}`;
-    const replyId = parseInt(linkMatch[3], 10);
+  const parts = trimmed.split(/\s+/);
+
+  // Single argument: e.g. /send @channel OR /send https://t.me/channel/123
+  if (parts.length === 1) {
+    const singleLink = parseTelegramMessageLink(parts[0]);
+    if (singleLink) {
+      return {
+        target: singleLink.chat,
+        replyId: singleLink.messageId,
+        replyChat: singleLink.messageId ? singleLink.chat : undefined,
+      };
+    }
     return {
-      target: targetChat,
-      replyId: isNaN(replyId) ? undefined : replyId,
+      target: normalizeTargetChat(parts[0]),
     };
   }
 
-  // 2. Check space-separated format: @channel 123 or -1001234567890 123
-  const parts = trimmed.split(/\s+/);
-  if (parts.length >= 2) {
-    const target = normalizeTargetChat(parts[0]);
-    // Check if second part is a number or link
-    const secondPart = parts[1];
-    const subLinkMatch = secondPart.match(/\/(\d+)$/);
-    let replyId: number | undefined;
+  // Two or more arguments: e.g. /send @channel https://t.me/other/123
+  const target = normalizeTargetChat(parts[0]);
+  const secondArg = parts[1];
 
-    if (subLinkMatch) {
-      replyId = parseInt(subLinkMatch[1], 10);
-    } else if (/^\d+$/.test(secondPart)) {
-      replyId = parseInt(secondPart, 10);
-    }
-
+  const secondLink = parseTelegramMessageLink(secondArg);
+  if (secondLink && secondLink.messageId) {
     return {
       target,
-      replyId: replyId && !isNaN(replyId) ? replyId : undefined,
+      replyId: secondLink.messageId,
+      replyChat: secondLink.chat,
+    };
+  }
+
+  if (/^\d+$/.test(secondArg)) {
+    const num = parseInt(secondArg, 10);
+    return {
+      target,
+      replyId: isNaN(num) ? undefined : num,
+      replyChat: target,
     };
   }
 
   return {
-    target: normalizeTargetChat(trimmed),
-    replyId: undefined,
+    target,
   };
 }
 
@@ -246,6 +302,7 @@ export function processRichTemplate(
   let explicitRtl: boolean | null = null;
   let replyToMessageId: number | undefined;
   let replyTargetChat: string | undefined;
+  let replyChat: string | undefined;
 
   // 1. Check <reply to="..."> or <reply id="..."> tag inside message
   const replyTagMatch = text.match(
@@ -256,6 +313,9 @@ export function processRichTemplate(
     const parsed = parseTargetAndReply(targetVal);
     if (parsed.replyId) {
       replyToMessageId = parsed.replyId;
+      if (parsed.replyChat) {
+        replyChat = parsed.replyChat;
+      }
       if (parsed.target) {
         replyTargetChat = parsed.target;
       }
@@ -272,6 +332,9 @@ export function processRichTemplate(
     const parsed = parseTargetAndReply(targetVal);
     if (parsed.replyId) {
       replyToMessageId = parsed.replyId;
+      if (parsed.replyChat) {
+        replyChat = parsed.replyChat;
+      }
       if (parsed.target) {
         replyTargetChat = parsed.target;
       }
@@ -380,6 +443,10 @@ export function processRichTemplate(
   // Embed reply metadata inside the message using hidden anchors
   if (replyToMessageId) {
     finalHtml = `<a name="tg-reply-${replyToMessageId}"></a>` + finalHtml;
+  }
+  if (replyChat) {
+    finalHtml =
+      `<a name="tg-reply-chat-${encodeURIComponent(replyChat)}"></a>` + finalHtml;
   }
   if (replyTargetChat) {
     finalHtml =

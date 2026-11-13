@@ -35,19 +35,24 @@ export async function sendCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  // 2. Parse command arguments: /send @channel [reply_to_id] OR /send https://t.me/channel/123
+  // 2. Parse command arguments: /send @channel [post_link] OR /send https://t.me/channel/123
   const rawTarget = typeof ctx.match === "string" ? ctx.match.trim() : "";
   const parsed = parseTargetAndReply(rawTarget);
 
   let targetChat = parsed.target;
   let replyId = parsed.replyId;
+  let replyChat = parsed.replyChat;
 
-  // If target chat or replyId was not specified in the command, check if embedded inside the message
+  // If target chat, replyId, or replyChat was not specified in the command, check if embedded inside the message
   const replyMsgText = (replyMessage as any).text || "";
   if (!replyId) {
     const anchorMatch = replyMsgText.match(/tg-reply-(\d+)/);
     if (anchorMatch) {
       replyId = parseInt(anchorMatch[1], 10);
+    }
+    const replyChatMatch = replyMsgText.match(/tg-reply-chat-([^"'\s>]+)/);
+    if (replyChatMatch) {
+      replyChat = decodeURIComponent(replyChatMatch[1]);
     }
   }
 
@@ -61,11 +66,14 @@ export async function sendCommand(ctx: BotContext): Promise<void> {
   if (!targetChat) {
     await ctx.reply(
       `⚠️ <b>Target Channel Required:</b>\n` +
-        `Usage: <code>/send &lt;channel_username_or_id&gt; [reply_message_id]</code>\n\n` +
+        `Usage: <code>/send &lt;@channel_or_id&gt; [post_link]</code>\n\n` +
         `<b>Examples:</b>\n` +
         `• <code>/send @my_channel</code>\n` +
-        `• <code>/send @my_channel 123</code> (send as reply to post #123)\n` +
-        `• <code>/send https://t.me/my_channel/123</code>`,
+        `• <code>/send @my_channel https://t.me/my_channel/123</code>\n` +
+        `• <code>/send @my_channel https://t.me/other_channel/123</code> (cross-channel reply)\n` +
+        `• <code>/send https://t.me/my_channel/123</code> (direct post link)\n` +
+        `• <code>/send -1001234567890</code> (private channel ID)\n\n` +
+        `💡 <i>Tip: Forward any message from a private channel here to get its numeric Chat ID!</i>`,
       { parse_mode: "HTML" }
     );
     return;
@@ -91,10 +99,18 @@ export async function sendCommand(ctx: BotContext): Promise<void> {
   try {
     const copyOptions: any = {};
     if (replyId) {
-      copyOptions.reply_parameters = {
+      const replyParams: any = {
         message_id: replyId,
-        allow_sending_without_reply: true,
       };
+
+      // In Telegram Bot API 7.0+, replies across different channels/chats require chat_id
+      if (replyChat && replyChat !== targetChat) {
+        replyParams.chat_id = replyChat;
+      } else {
+        replyParams.allow_sending_without_reply = true;
+      }
+
+      copyOptions.reply_parameters = replyParams;
     }
 
     await ctx.api.copyMessage(
@@ -104,7 +120,13 @@ export async function sendCommand(ctx: BotContext): Promise<void> {
       copyOptions
     );
 
-    const replyNote = replyId ? ` as a reply to message <code>#${replyId}</code>` : "";
+    const replyFrom =
+      replyChat && replyChat !== targetChat
+        ? ` from <code>${escapeHtml(replyChat)}</code>`
+        : "";
+    const replyNote = replyId
+      ? ` as a reply to message <code>#${replyId}</code>${replyFrom}`
+      : "";
 
     await ctx.reply(
       `✅ <b>Success!</b> The message was sent to <code>${escapeHtml(
@@ -126,7 +148,7 @@ export async function sendCommand(ctx: BotContext): Promise<void> {
           targetChat
         )}.\n` +
         `2. Ensure the bot has permission to <b>Post Messages</b>.\n` +
-        `3. Verify the channel username or numeric ID is correct.`,
+        `3. Verify the channel username or numeric ID (e.g. <code>-100...</code>) is correct.`,
       { parse_mode: "HTML" }
     );
   }
