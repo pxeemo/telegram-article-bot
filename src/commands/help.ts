@@ -19,23 +19,32 @@ export const GENERAL_HELP_TEXT = `
 <hr/>
 
 <h3>3. Embedding Media &amp; Files</h3>
-<p>Send any <b>photo, video, GIF, audio, or document</b> to this bot. The bot will instantly reply with an exact <code>&lt;img src="tg://photo?id=..."/&gt;</code> code snippet that you can copy and paste into your template!</p>
+<p>Send any <b>photo, video, GIF, audio, or document</b> to this bot. The bot will instantly reply with an exact <code>&lt;img src="tg://photo?id=..."/&gt;</code> code snippet formatted as a code block for easy copying!</p>
 
 <hr/>
 
-<h3>4. Publishing to Channels (/send)</h3>
+<h3>4. Publishing to Channels (/send) &amp; Sending as Replies</h3>
 <p>Reply to any rendered preview output from the bot with:</p>
 <pre><code>/send @your_channel</code></pre>
-<p>or using numeric chat ID:</p>
-<pre><code>/send -1001234567890</code></pre>
-<p><b>Permission Check:</b> The bot verifies directly inside the target channel that you are the channel Owner or an Administrator with "Post Messages" permission. The message is then copied cleanly without any "Forwarded from" headers.</p>
+<p><b>Sending as a Reply to a Specific Post:</b></p>
+<p>You can send the article as a reply to an existing channel post using any of these methods:</p>
+<ul>
+  <li><b>In the /send command:</b>
+    <pre><code>/send @your_channel 123
+/send https://t.me/your_channel/123</code></pre>
+  </li>
+  <li><b>Inside the HTML template itself:</b>
+    <pre><code>&lt;reply to="123"/&gt;
+&lt;reply to="https://t.me/your_channel/123"/&gt;</code></pre>
+  </li>
+</ul>
 
 <hr/>
 
 <h3>5. How to Schedule Messages</h3>
 <p>You can schedule channel posts using Telegram's built-in message scheduler:</p>
 <ol>
-  <li>Reply to the bot's rendered article with <code>/send @your_channel</code>.</li>
+  <li>Reply to the bot's rendered article with <code>/send @your_channel</code> (and optional reply ID).</li>
   <li><b>Desktop:</b> Right-click the send button (arrow) and select <b>"Schedule message..."</b>.</li>
   <li><b>Mobile (iOS / Android):</b> Long-press the send button (arrow) and select <b>"Schedule message"</b>.</li>
   <li>Pick your desired date and time.</li>
@@ -47,7 +56,6 @@ export const GENERAL_HELP_TEXT = `
 <h3>Bot Commands:</h3>
 <p>• <code>/help</code> — This general usage guide.<br/>
 • <code>/cheatsheet</code> — Full HTML tags cheatsheet with collapsible categories.<br/>
-• <code>/id</code> — Show your Telegram User ID and Chat ID.<br/>
 • <code>/start</code> — Introduction and welcome message.</p>
 `;
 

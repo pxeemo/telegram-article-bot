@@ -17,16 +17,18 @@ A Telegram bot built with **grammY** and **TypeScript**, powered by **Bun**, and
    - Drop any photo, video, animation, audio, or document file into the chat with the bot.
    - The bot replies with single tag and figure code blocks (e.g. `<pre><code><img src="tg://photo?id=..."/></code></pre>`).
    - The bot automatically maps Telegram file IDs to compliant `media` payload entries when rendering.
-3. **Channel Publishing & Scheduling (`/send`):**
+3. **Channel Publishing, Replies & Scheduling (`/send`):**
    - Reply to any rendered bot output with `/send @channel_username` or `/send -100xxxxxxxxxx`.
    - **No Forward Tags:** Copies the article directly to the channel using `copyMessage` without any forward headers or quote attribution.
+   - **Send as Reply to a Specific Post:**
+     - In the command: `/send @channel 123` or `/send https://t.me/channel/123`
+     - Inside the template: `<reply to="123"/>` or `<reply to="https://t.me/channel/123"/>`
    - **In-Channel Permission Verification:** Checks directly in the target channel via `getChatMember` whether the caller is the channel Owner (`creator`) or an Administrator with `can_post_messages` enabled.
    - **Native Scheduled Messages:** Schedule your `/send` command using Telegram's native message scheduler (Desktop: right-click send arrow -> "Schedule message..."; Mobile: long-press send arrow -> "Schedule message").
 4. **Commands:**
-   - `/help`: General usage guide, media workflow, and scheduling instructions.
+   - `/start`: Simple and brief rich introduction.
+   - `/help`: General usage guide, media workflow, reply options, and scheduling instructions.
    - `/cheatsheet`: Interactive HTML cheatsheet with collapsible categories (`<details>`) and clean code snippets without HTML comments.
-   - `/id`: View user and chat IDs.
-   - `/start`: Welcome introduction.
 
 ---
 

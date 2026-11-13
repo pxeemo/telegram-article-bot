@@ -3,6 +3,7 @@ import {
   checkUserChatPermissions,
   escapeHtml,
   normalizeTargetChat,
+  parseTargetAndReply,
 } from "../utils";
 import { GrammyError } from "grammy";
 
@@ -18,7 +19,7 @@ export async function sendCommand(ctx: BotContext): Promise<void> {
     await ctx.reply(
       `⚠️ <b>Missing Reply Target:</b>\n` +
         `Please reply to one of the bot's rendered messages with:\n` +
-        `<code>/send &lt;channel_username_or_id&gt;</code>`,
+        `<code>/send &lt;channel_username_or_id&gt; [reply_to_id]</code>`,
       { parse_mode: "HTML" }
     );
     return;
@@ -34,24 +35,45 @@ export async function sendCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  // 2. Target channel parsing: /send @channel or /send -100xxxxxxxxxx
+  // 2. Parse command arguments: /send @channel [reply_to_id] OR /send https://t.me/channel/123
   const rawTarget = typeof ctx.match === "string" ? ctx.match.trim() : "";
-  if (!rawTarget) {
+  const parsed = parseTargetAndReply(rawTarget);
+
+  let targetChat = parsed.target;
+  let replyId = parsed.replyId;
+
+  // If target chat or replyId was not specified in the command, check if embedded inside the message
+  const replyMsgText = (replyMessage as any).text || "";
+  if (!replyId) {
+    const anchorMatch = replyMsgText.match(/tg-reply-(\d+)/);
+    if (anchorMatch) {
+      replyId = parseInt(anchorMatch[1], 10);
+    }
+  }
+
+  if (!targetChat) {
+    const chatAnchorMatch = replyMsgText.match(/tg-chat-([^"'\s>]+)/);
+    if (chatAnchorMatch) {
+      targetChat = decodeURIComponent(chatAnchorMatch[1]);
+    }
+  }
+
+  if (!targetChat) {
     await ctx.reply(
       `⚠️ <b>Target Channel Required:</b>\n` +
-        `Usage: <code>/send &lt;channel_username_or_id&gt;</code>\n\n` +
+        `Usage: <code>/send &lt;channel_username_or_id&gt; [reply_message_id]</code>\n\n` +
         `<b>Examples:</b>\n` +
         `• <code>/send @my_channel</code>\n` +
-        `• <code>/send -1001234567890</code>`,
+        `• <code>/send @my_channel 123</code> (send as reply to post #123)\n` +
+        `• <code>/send https://t.me/my_channel/123</code>`,
       { parse_mode: "HTML" }
     );
     return;
   }
 
-  const targetChat = normalizeTargetChat(rawTarget);
+  targetChat = normalizeTargetChat(targetChat);
 
   // 3. Dynamic Permission Check inside the target channel/chat
-  // Checks if the user who ran /send has message posting rights in that channel
   const permission = await checkUserChatPermissions(ctx.api, targetChat, userId);
   if (!permission.allowed) {
     await ctx.reply(
@@ -65,14 +87,29 @@ export async function sendCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  // 4. Send without forward quoting using copyMessage
+  // 4. Send without forward quoting using copyMessage (optionally in reply)
   try {
-    await ctx.api.copyMessage(targetChat, ctx.chat.id, replyMessage.message_id);
+    const copyOptions: any = {};
+    if (replyId) {
+      copyOptions.reply_parameters = {
+        message_id: replyId,
+        allow_sending_without_reply: true,
+      };
+    }
+
+    await ctx.api.copyMessage(
+      targetChat,
+      ctx.chat.id,
+      replyMessage.message_id,
+      copyOptions
+    );
+
+    const replyNote = replyId ? ` as a reply to message <code>#${replyId}</code>` : "";
 
     await ctx.reply(
       `✅ <b>Success!</b> The message was sent to <code>${escapeHtml(
         targetChat
-      )}</code> without forward tags.`,
+      )}</code>${replyNote} without forward tags.`,
       { parse_mode: "HTML" }
     );
   } catch (error: any) {
