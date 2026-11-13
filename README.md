@@ -7,15 +7,26 @@ A Telegram bot built with **grammY** and **TypeScript**, powered by **Bun**, and
 ## Features
 
 1. **Rich HTML & Articles Preview:**
-   - **Text Messages or HTML Files:** Send your template directly as a chat text message, OR upload an `.html` / `.htm` document (ideal for long-form articles).
+   - **Text Messages or Template Files:** Send raw HTML in chat, OR upload `.txt`, `.html`, or `.md` files.
+   - When an HTML/template file is sent, the bot outputs both:
+     1. The copy-pasteable `<tg-document>` media snippet (so you can embed the file as an attachment in articles).
+     2. The rendered rich article post.
    - Rendered using Telegram's **Rich Message API** (`sendRichMessage`), supporting modern article elements (headings `<h1>`-`<h6>`, `<details>`, `<table>`, `<mark>`, checklists, `<tg-button>`, `<tg-button-row>`, `<figure>`, math, etc.).
-   - Full **RTL / LTR Support:** Persian, Arabic, and Hebrew articles are automatically detected and rendered RTL. You can also explicitly specify `<!-- rtl -->` / `<!-- ltr -->` or `#rtl` / `#ltr` at the top of your text or file.
-2. **Channel Publishing (`/send`):**
+   - Full **RTL / LTR Support:** Persian, Arabic, and Hebrew articles are automatically detected and rendered RTL. You can also explicitly specify `#rtl` / `#ltr` or `<!-- rtl -->` / `<!-- ltr -->` at the top of your text or file.
+2. **Media Helper:**
+   - Drop any photo, video, animation, audio, or document file into the chat with the bot.
+   - The bot replies with single tag and figure code blocks (e.g. `<pre><code><img src="tg://photo?id=..."/></code></pre>`).
+   - The bot automatically maps Telegram file IDs to compliant `media` payload entries when rendering.
+3. **Channel Publishing & Scheduling (`/send`):**
    - Reply to any rendered bot output with `/send @channel_username` or `/send -100xxxxxxxxxx`.
-   - **No Forward Tags:** Copies the article directly to the channel using `copyMessage` without any forward header or quote tags.
-   - **Dynamic In-Channel Permission Verification:** No hardcoded user IDs. When `/send` is executed, the bot checks directly in the target channel via `getChatMember` whether the caller is the channel Owner (`creator`) or an Administrator with `can_post_messages` enabled.
-3. **Complete HTML Cheatsheet (`/help`):**
-   A fast, copy-pasteable cheatsheet of all Rich HTML tags: headings, typography, `<tg-button>`, `<tg-button-row>`, `<tg-emoji>`, tables, checklists, media collages/slideshows, and LaTeX math.
+   - **No Forward Tags:** Copies the article directly to the channel using `copyMessage` without any forward headers or quote attribution.
+   - **In-Channel Permission Verification:** Checks directly in the target channel via `getChatMember` whether the caller is the channel Owner (`creator`) or an Administrator with `can_post_messages` enabled.
+   - **Native Scheduled Messages:** Schedule your `/send` command using Telegram's native message scheduler (Desktop: right-click send arrow -> "Schedule message..."; Mobile: long-press send arrow -> "Schedule message").
+4. **Commands:**
+   - `/help`: General usage guide, media workflow, and scheduling instructions.
+   - `/cheatsheet`: Interactive HTML cheatsheet with collapsible categories (`<details>`) and clean code snippets without HTML comments.
+   - `/id`: View user and chat IDs.
+   - `/start`: Welcome introduction.
 
 ---
 
@@ -75,28 +86,8 @@ Open your deployed worker URL in your browser:
 ```
 https://<your-worker>.<your-subdomain>.workers.dev/setWebhook?secret=<SECRET_TOKEN>
 ```
-*(If you did not set `SECRET_TOKEN`, omit the `?secret=...` query parameter).*
 
 #### Option B: Via Telegram Bot API curl
 ```bash
 curl "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook?url=https://<your-worker>.<your-subdomain>.workers.dev/&secret_token=<SECRET_TOKEN>"
 ```
-
----
-
-## Usage Guide
-
-- **Preview Rich Articles:**
-  - Send raw HTML in a chat message, OR
-  - Upload an `.html` file as a document.
-- **Publish without Forward Tag:** Reply to the previewed output with:
-  ```
-  /send @my_channel
-  ```
-  or
-  ```
-  /send -1001234567890
-  ```
-  The bot verifies in `@my_channel` that you are the creator or an administrator with message posting rights, and then copies the article without forward tags.
-- **View Cheatsheet:** Send `/help` in chat.
-- **Get IDs:** Send `/id` to check your User ID and Chat ID.

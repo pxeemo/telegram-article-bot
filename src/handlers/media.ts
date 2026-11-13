@@ -49,13 +49,13 @@ export async function handleMediaMessage(ctx: BotContext): Promise<void> {
   const replyHtml =
     `🖼️ <b>${mediaType} Received!</b>\n\n` +
     `<b>Single Tag (tap to copy):</b>\n` +
-    `<code>${escapeHtml(snippet)}</code>\n\n` +
+    `<pre><code>${escapeHtml(snippet)}</code></pre>\n\n` +
     (figureSnippet
       ? `<b>Figure with Caption:</b>\n<pre><code>${escapeHtml(
           figureSnippet
         )}</code></pre>\n\n`
       : "") +
-    `💡 <i>Copy and paste this tag directly into your HTML text or .html document!</i>`;
+    `💡 <i>Copy and paste this tag directly into your HTML text or template!</i>`;
 
   await ctx.reply(replyHtml, { parse_mode: "HTML" });
 }

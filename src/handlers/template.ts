@@ -34,7 +34,7 @@ export async function renderRichMessage(
       `❌ <b>Telegram Rich Message (Article) Error:</b>\n` +
         `<code>${escapeHtml(errorMsg)}</code>\n\n` +
         `💡 <b>Troubleshooting:</b>\n` +
-        `• Make sure tags are supported in Telegram Rich Messages (send /help for full cheatsheet).\n` +
+        `• Make sure tags are supported in Telegram Rich Messages (send /cheatsheet for full list).\n` +
         `• Ensure all tags are properly closed and nested.\n` +
         `• Unescaped <code>&lt;</code>, <code>&gt;</code>, or <code>&amp;</code> in plain text must be escaped as <code>&amp;lt;</code>, <code>&amp;gt;</code>, and <code>&amp;amp;</code>.`,
       { parse_mode: "HTML" }
@@ -57,8 +57,10 @@ export async function handleTextMessage(ctx: BotContext): Promise<void> {
 
 /**
  * Handles incoming documents:
- * - If .html/.htm/.txt: downloads and renders as a rich article template.
- * - If other file (PDF, ZIP, etc.): generates an embeddable <tg-document> snippet for articles.
+ * - If template/text file (.html, .htm, .txt, .md, etc.):
+ *   1. Sends the media snippet tag so the user can embed the file if needed.
+ *   2. Parses and renders the rich article preview.
+ * - If other file (PDF, ZIP, image, etc.): generates an embeddable <tg-document> snippet for articles.
  */
 export async function handleDocumentMessage(ctx: BotContext): Promise<void> {
   const document = ctx.message?.document;
@@ -68,25 +70,30 @@ export async function handleDocumentMessage(ctx: BotContext): Promise<void> {
   const mimeType = document.mime_type?.toLowerCase() || "";
 
   // Check if the uploaded file is an HTML or text template file
-  const isHtmlFile =
+  const isTemplateFile =
     fileName.endsWith(".html") ||
     fileName.endsWith(".htm") ||
     fileName.endsWith(".txt") ||
+    fileName.endsWith(".text") ||
+    fileName.endsWith(".tmpl") ||
+    fileName.endsWith(".article") ||
+    fileName.endsWith(".md") ||
+    fileName.endsWith(".markdown") ||
     mimeType.includes("html") ||
-    mimeType.includes("text");
+    mimeType.startsWith("text/");
 
-  // If it's a non-HTML file (PDF, ZIP, image, etc.), return the embeddable tag snippet!
-  if (!isHtmlFile) {
-    const fileId = document.file_id;
-    const snippet = `<tg-document src="tg://document?id=${fileId}"></tg-document>`;
-    const figureSnippet = `<figure>\n  <tg-document src="tg://document?id=${fileId}"></tg-document>\n  <figcaption>${escapeHtml(
-      document.file_name || "Attachment"
-    )} <cite>Download</cite></figcaption>\n</figure>`;
+  const fileId = document.file_id;
+  const snippet = `<tg-document src="tg://document?id=${fileId}"></tg-document>`;
+  const figureSnippet = `<figure>\n  <tg-document src="tg://document?id=${fileId}"></tg-document>\n  <figcaption>${escapeHtml(
+    document.file_name || "Attachment"
+  )} <cite>Download</cite></figcaption>\n</figure>`;
 
+  // For non-template files, provide the embeddable snippet
+  if (!isTemplateFile) {
     await ctx.reply(
       `📄 <b>File Received (${escapeHtml(document.file_name || "Document")})!</b>\n\n` +
         `<b>Tag for your Article (tap to copy):</b>\n` +
-        `<code>${escapeHtml(snippet)}</code>\n\n` +
+        `<pre><code>${escapeHtml(snippet)}</code></pre>\n\n` +
         `<b>Figure with Caption:</b>\n` +
         `<pre><code>${escapeHtml(figureSnippet)}</code></pre>\n\n` +
         `💡 <i>Copy and paste this tag inside your HTML text or template!</i>`,
@@ -94,6 +101,16 @@ export async function handleDocumentMessage(ctx: BotContext): Promise<void> {
     );
     return;
   }
+
+  // For HTML / template files:
+  // 1. Send the file media snippet (so it can also be embedded as a downloadable attachment)
+  await ctx.reply(
+    `📄 <b>Template File Received (${escapeHtml(document.file_name || "File")})!</b>\n\n` +
+      `<b>Tag to embed as file attachment (tap to copy):</b>\n` +
+      `<pre><code>${escapeHtml(snippet)}</code></pre>\n\n` +
+      `<i>Parsing and rendering article preview below... 👇</i>`,
+    { parse_mode: "HTML" }
+  );
 
   // Telegram rich messages have a 32,768 character limit; check reasonable file size
   if (document.file_size && document.file_size > 512 * 1024) {
@@ -107,7 +124,7 @@ export async function handleDocumentMessage(ctx: BotContext): Promise<void> {
   }
 
   try {
-    // Download the document file using Telegram Bot API
+    // 2. Download and render the parsed post
     const file = await ctx.getFile();
     if (!file.file_path) {
       throw new Error("Unable to obtain file download path from Telegram.");

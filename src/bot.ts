@@ -2,6 +2,7 @@ import { Bot } from "grammy";
 import { BotContext, Env } from "./types";
 import { startCommand, idCommand } from "./commands/start";
 import { helpCommand } from "./commands/help";
+import { cheatsheetCommand } from "./commands/cheatsheet";
 import { sendCommand } from "./commands/send";
 import { handleTextMessage, handleDocumentMessage } from "./handlers/template";
 import { handleMediaMessage } from "./handlers/media";
@@ -21,6 +22,7 @@ export function createBot(env: Env): Bot<BotContext> {
   // Register commands
   bot.command("start", startCommand);
   bot.command("help", helpCommand);
+  bot.command("cheatsheet", cheatsheetCommand);
   bot.command("id", idCommand);
   bot.command("send", sendCommand);
 
