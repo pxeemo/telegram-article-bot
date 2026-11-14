@@ -7,7 +7,7 @@ A Telegram bot built with **grammY** and **TypeScript**, powered by **Bun**, and
 ## Features
 
 1. **Rich HTML & Articles Preview:**
-   - **Text Messages or Template Files:** Send raw HTML in chat, OR upload `.txt`, `.html`, or `.md` files.
+   - **Text Messages or Template Files:** Send raw HTML in chat, OR upload `.html` or `.htm` files.
    - When an HTML/template file is sent, the bot outputs both:
      1. The copy-pasteable `<tg-document>` media snippet (so you can embed the file as an attachment in articles).
      2. The rendered rich article post.
@@ -24,15 +24,15 @@ A Telegram bot built with **grammY** and **TypeScript**, powered by **Bun**, and
      - Same channel: `/send @channel https://t.me/channel/123` or simply `/send https://t.me/channel/123`
      - Cross-channel replies: `/send @channel https://t.me/otherchannel/123`
    - **Private Channels Support:**
-     - Forward any post from your private channel directly to the bot to get its numeric channel ID (e.g. `-1001234567890`).
+     - Forward any post from your private channel and reply with `/id` to get its numeric channel ID (e.g. `-1001234567890`).
      - Or copy any message link (`t.me/c/1234567890/42`) and prepend `-100` to the first number.
    - **In-Channel Permission Verification:** Checks directly in the target channel via `getChatMember` whether the caller is the channel Owner (`creator`) or an Administrator with `can_post_messages` enabled.
-   - **Native Scheduled Messages:** Schedule your `/send` command using Telegram's native message scheduler (Desktop: right-click send arrow -> "Schedule message..."; Mobile: long-press send arrow -> "Schedule message").
+   - **Native Scheduled Messages:** Schedule your `/send` command using Telegram's native message scheduler to publish automatically at a future time.
 4. **Commands:**
-   - `/start`: Simple and brief rich introduction.
+   - `/start`: Simple and brief rich introduction with GitHub source link.
    - `/help`: General usage guide, media workflow, reply options, and private channel instructions.
    - `/cheatsheet`: Interactive HTML cheatsheet with collapsible categories (`<details>`) and clean code snippets without HTML comments.
-   - `/id`: Get user ID, chat ID, or forwarded channel details.
+   - `/id`: Get user ID, chat ID, or reply to a forwarded post to get channel details.
 
 ---
 

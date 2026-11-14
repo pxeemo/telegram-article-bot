@@ -57,7 +57,7 @@ export async function handleTextMessage(ctx: BotContext): Promise<void> {
 
 /**
  * Handles incoming documents:
- * - If template/text file (.html, .htm, .txt, .md, etc.):
+ * - If template file (.html, .htm):
  *   1. Sends the media snippet tag so the user can embed the file if needed.
  *   2. Parses and renders the rich article preview.
  * - If other file (PDF, ZIP, image, etc.): generates an embeddable <tg-document> snippet for articles.
@@ -67,20 +67,10 @@ export async function handleDocumentMessage(ctx: BotContext): Promise<void> {
   if (!document) return;
 
   const fileName = document.file_name?.toLowerCase() || "";
-  const mimeType = document.mime_type?.toLowerCase() || "";
 
-  // Check if the uploaded file is an HTML or text template file
+  // Check if the uploaded file is an HTML template file (.html or .htm)
   const isTemplateFile =
-    fileName.endsWith(".html") ||
-    fileName.endsWith(".htm") ||
-    fileName.endsWith(".txt") ||
-    fileName.endsWith(".text") ||
-    fileName.endsWith(".tmpl") ||
-    fileName.endsWith(".article") ||
-    fileName.endsWith(".md") ||
-    fileName.endsWith(".markdown") ||
-    mimeType.includes("html") ||
-    mimeType.startsWith("text/");
+    fileName.endsWith(".html") || fileName.endsWith(".htm");
 
   const fileId = document.file_id;
   const snippet = `<tg-document src="tg://document?id=${fileId}"></tg-document>`;
@@ -93,9 +83,9 @@ export async function handleDocumentMessage(ctx: BotContext): Promise<void> {
     await ctx.reply(
       `📄 <b>File Received (${escapeHtml(document.file_name || "Document")})!</b>\n\n` +
         `<b>Tag for your Article (tap to copy):</b>\n` +
-        `<pre><code>${escapeHtml(snippet)}</code></pre>\n\n` +
+        `<pre><code class="language-html">${escapeHtml(snippet)}</code></pre>\n\n` +
         `<b>Figure with Caption:</b>\n` +
-        `<pre><code>${escapeHtml(figureSnippet)}</code></pre>\n\n` +
+        `<pre><code class="language-html">${escapeHtml(figureSnippet)}</code></pre>\n\n` +
         `💡 <i>Copy and paste this tag inside your HTML text or template!</i>`,
       { parse_mode: "HTML" }
     );
@@ -107,7 +97,7 @@ export async function handleDocumentMessage(ctx: BotContext): Promise<void> {
   await ctx.reply(
     `📄 <b>Template File Received (${escapeHtml(document.file_name || "File")})!</b>\n\n` +
       `<b>Tag to embed as file attachment (tap to copy):</b>\n` +
-      `<pre><code>${escapeHtml(snippet)}</code></pre>\n\n` +
+      `<pre><code class="language-html">${escapeHtml(snippet)}</code></pre>\n\n` +
       `<i>Parsing and rendering article preview below... 👇</i>`,
     { parse_mode: "HTML" }
   );

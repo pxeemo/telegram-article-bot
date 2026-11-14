@@ -10,7 +10,7 @@ export const RICH_ARTICLES_CHEATSHEET = `
   <summary><b>1. Template Input &amp; Text Direction (RTL / LTR)</b></summary>
   <p><b>Input Methods:</b></p>
   <pre><code>• Send raw HTML directly in chat, OR
-• Upload a .txt or .html file containing HTML</code></pre>
+• Upload an .html or .htm file containing HTML</code></pre>
   <p><b>RTL Direction:</b></p>
   <p>Persian, Arabic, and Hebrew articles are automatically rendered RTL. To explicitly override text direction, add one of these at the top of your text or file:</p>
   <pre><code>#rtl
@@ -164,12 +164,12 @@ export const RICH_ARTICLES_CHEATSHEET = `
 
 <details>
   <summary><b>11. Character Escaping &amp; Entities</b></summary>
-  <pre><code>&amp;amp;lt;   = &lt;
-&amp;amp;gt;   = &gt;
-&amp;amp;amp;  = &amp;
-&amp;amp;quot; = "
-&amp;amp;apos; = '
-&amp;amp;nbsp; &amp;amp;hellip; &amp;amp;mdash; &amp;amp;ndash; &amp;amp;lsquo; &amp;amp;rsquo; &amp;amp;ldquo; &amp;amp;rdquo;</code></pre>
+  <pre><code>&amp;lt;   = &lt;
+&amp;gt;   = &gt;
+&amp;amp;  = &amp;
+&amp;quot; = "
+&amp;apos; = '
+&amp;nbsp; &amp;hellip; &amp;mdash; &amp;ndash; &amp;lsquo; &amp;rsquo; &amp;ldquo; &amp;rdquo;</code></pre>
 </details>
 `;
 

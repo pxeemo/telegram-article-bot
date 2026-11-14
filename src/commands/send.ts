@@ -73,7 +73,7 @@ export async function sendCommand(ctx: BotContext): Promise<void> {
         `• <code>/send @my_channel https://t.me/other_channel/123</code> (cross-channel reply)\n` +
         `• <code>/send https://t.me/my_channel/123</code> (direct post link)\n` +
         `• <code>/send -1001234567890</code> (private channel ID)\n\n` +
-        `💡 <i>Tip: Forward any message from a private channel here to get its numeric Chat ID!</i>`,
+        `💡 <i>Tip: Forward a post from your private channel and reply with <code>/id</code> to get its numeric Chat ID!</i>`,
       { parse_mode: "HTML" }
     );
     return;

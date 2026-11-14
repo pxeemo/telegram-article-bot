@@ -4,7 +4,7 @@ import { startCommand } from "./commands/start";
 import { helpCommand } from "./commands/help";
 import { cheatsheetCommand } from "./commands/cheatsheet";
 import { sendCommand } from "./commands/send";
-import { idCommand, handleForwardedChannel } from "./commands/id";
+import { idCommand } from "./commands/id";
 import { handleTextMessage, handleDocumentMessage } from "./handlers/template";
 import { handleMediaMessage } from "./handlers/media";
 
@@ -27,14 +27,11 @@ export function createBot(env: Env): Bot<BotContext> {
   bot.command("id", idCommand);
   bot.command("send", sendCommand);
 
-  // Handle forwarded posts from channels in private chat to provide channel ID
-  bot.use(handleForwardedChannel);
-
   // Register handlers:
   // 1. Direct text messages (HTML rich article templates)
   bot.on("message:text", handleTextMessage);
 
-  // 2. Uploaded documents (.html/.htm/.txt templates OR other files to get <tg-document> tag)
+  // 2. Uploaded documents (.html/.htm templates OR other files to get <tg-document> tag)
   bot.on("message:document", handleDocumentMessage);
 
   // 3. Media uploads (photos, videos, GIFs, audio, voice) -> returns copy-pasteable tg:// tag
