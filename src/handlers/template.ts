@@ -56,6 +56,52 @@ export async function handleTextMessage(ctx: BotContext): Promise<void> {
 }
 
 /**
+ * Handles incoming edited text messages:
+ * - Attempts to update the previously sent reply message (message ID x + 1).
+ * - If editing fails (e.g. message deleted or not found), falls back to sending a new rich message.
+ */
+export async function handleEditedTextMessage(ctx: BotContext): Promise<void> {
+  const msg = ctx.editedMessage;
+  if (!msg || !msg.text) return;
+
+  // Ignore bot commands
+  if (msg.text.startsWith("/")) return;
+
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  const targetMessageId = msg.message_id + 1;
+  const { html, isRtl, media } = processRichTemplate(msg.text);
+
+  if (!html) {
+    await ctx.reply("⚠️ The template is empty. Please provide HTML content.");
+    return;
+  }
+
+  try {
+    // Attempt to update message ID x + 1
+    await ctx.api.editMessageText(chatId, targetMessageId, {
+      html,
+      media,
+      is_rtl: isRtl,
+    });
+  } catch (error: any) {
+    const errorDesc =
+      error instanceof GrammyError
+        ? error.description
+        : error?.message || "";
+
+    // If content was not modified, ignore
+    if (errorDesc.includes("message is not modified")) {
+      return;
+    }
+
+    // Fallback: send a new message if editing message x + 1 failed
+    await renderRichMessage(ctx, msg.text);
+  }
+}
+
+/**
  * Handles incoming documents:
  * - If template file (.html, .htm):
  *   1. Sends the media snippet tag so the user can embed the file if needed.

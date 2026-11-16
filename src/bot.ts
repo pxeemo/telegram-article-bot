@@ -5,7 +5,11 @@ import { helpCommand } from "./commands/help";
 import { cheatsheetCommand } from "./commands/cheatsheet";
 import { sendCommand } from "./commands/send";
 import { idCommand } from "./commands/id";
-import { handleTextMessage, handleDocumentMessage } from "./handlers/template";
+import {
+  handleTextMessage,
+  handleEditedTextMessage,
+  handleDocumentMessage,
+} from "./handlers/template";
 import { handleMediaMessage } from "./handlers/media";
 
 /**
@@ -30,6 +34,7 @@ export function createBot(env: Env): Bot<BotContext> {
   // Register handlers:
   // 1. Direct text messages (HTML rich article templates)
   bot.on("message:text", handleTextMessage);
+  bot.on("edited_message:text", handleEditedTextMessage);
 
   // 2. Uploaded documents (.html/.htm templates OR other files to get <tg-document> tag)
   bot.on("message:document", handleDocumentMessage);
