@@ -1,4 +1,5 @@
 import { Context } from "grammy";
+import type { MediaGroupCoordinator } from "./coordinator/durable-object";
 
 /**
  * Cloudflare Worker Environment Bindings
@@ -14,6 +15,16 @@ export interface Env {
    * (Matches X-Telegram-Bot-Api-Secret-Token header)
    */
   SECRET_TOKEN?: string;
+
+  /**
+   * Optional Cloudflare KV Namespace for media group aggregation
+   */
+  MEDIA_GROUP_KV?: KVNamespace;
+
+  /**
+   * Optional Cloudflare Durable Object Namespace for media group aggregation
+   */
+  MEDIA_GROUP_DO?: DurableObjectNamespace<MediaGroupCoordinator>;
 }
 
 /**

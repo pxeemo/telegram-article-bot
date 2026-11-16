@@ -1,10 +1,45 @@
 import { BotContext } from "../types";
 import { escapeHtml } from "../utils";
+import { handleMediaGroupWithKv } from "../coordinator/kv";
+
+export interface MediaGroupItem {
+  messageId: number;
+  tag: string;
+  mediaType: string;
+  fileId: string;
+}
+
+/**
+ * Builds the response containing both <tg-collage> and <tg-slideshow>.
+ */
+export function buildMediaGroupReply(
+  items: MediaGroupItem[],
+  caption?: string
+): string {
+  const tagsFormatted = items.map((i) => `  ${i.tag}`).join("\n");
+  const userCaption = caption ? escapeHtml(caption) : null;
+  const collageCaption = userCaption || "Collage caption";
+  const slideshowCaption = userCaption || "Slideshow caption";
+
+  const collageSnippet = `<tg-collage>\n${tagsFormatted}\n  <figcaption>${collageCaption}</figcaption>\n</tg-collage>`;
+  const slideshowSnippet = `<tg-slideshow>\n${tagsFormatted}\n  <figcaption>${slideshowCaption}</figcaption>\n</tg-slideshow>`;
+
+  return (
+    `🖼️ <b>Media Group Received (${items.length} items)!</b>\n\n` +
+    `<b>Collage (tap to copy):</b>\n` +
+    `<pre><code class="language-html">${escapeHtml(collageSnippet)}</code></pre>\n\n` +
+    `<b>Slideshow (tap to copy):</b>\n` +
+    `<pre><code class="language-html">${escapeHtml(slideshowSnippet)}</code></pre>\n\n` +
+    `💡 <i>Copy and paste either tag directly into your HTML text or template!</i>`
+  );
+}
 
 /**
  * Handles incoming media (photos, videos, animations, audio, voice)
- * and replies with ready-to-use Telegram HTML article tags.
- * If the user sent a caption with the media, it is automatically used in <figcaption>.
+ * and replies with ready-to-use Telegram HTML article tags:
+ * - If MEDIA_GROUP_DO or MEDIA_GROUP_KV binding is configured and message is part of a media group,
+ *   aggregates the album into <tg-collage> and <tg-slideshow>.
+ * - Otherwise (or if single media), handles individually.
  */
 export async function handleMediaMessage(ctx: BotContext): Promise<void> {
   const msg = ctx.message;
@@ -54,6 +89,51 @@ export async function handleMediaMessage(ctx: BotContext): Promise<void> {
   }
 
   if (!fileId) return;
+
+  // Check for media group: if an optional coordinator binding exists, aggregate!
+  if (msg.media_group_id) {
+    const item: MediaGroupItem = {
+      messageId: msg.message_id,
+      tag: snippet,
+      mediaType,
+      fileId,
+    };
+
+    // 1. Check for Durable Object binding
+    if (ctx.env?.MEDIA_GROUP_DO) {
+      try {
+        const id = ctx.env.MEDIA_GROUP_DO.idFromName(msg.media_group_id);
+        const stub = ctx.env.MEDIA_GROUP_DO.get(id);
+        await stub.addMediaItem({
+          chatId: ctx.chat!.id,
+          mediaGroupId: msg.media_group_id,
+          item,
+          caption: msg.caption,
+        });
+        return;
+      } catch (err) {
+        console.error("Error delegating to MEDIA_GROUP_DO:", err);
+      }
+    }
+
+    // 2. Check for KV Namespace binding
+    if (ctx.env?.MEDIA_GROUP_KV) {
+      try {
+        await handleMediaGroupWithKv(
+          ctx,
+          ctx.env.MEDIA_GROUP_KV,
+          msg.media_group_id,
+          item,
+          msg.caption
+        );
+        return;
+      } catch (err) {
+        console.error("Error delegating to MEDIA_GROUP_KV:", err);
+      }
+    }
+
+    // 3. Fallback: Neither binding configured -> handle individually
+  }
 
   const replyHtml =
     `🖼️ <b>${mediaType} Received!</b>\n\n` +

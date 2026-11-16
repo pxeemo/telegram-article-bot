@@ -3,6 +3,9 @@ import { createBot } from "./bot";
 import { BotContext, Env } from "./types";
 import { Bot } from "grammy";
 
+// Export Durable Object class so Cloudflare Workers can bind to it if MEDIA_GROUP_DO is configured
+export { MediaGroupCoordinator } from "./coordinator/durable-object";
+
 // Cached bot and handler instances across isolate invocations
 let cachedBot: Bot<BotContext> | null = null;
 let cachedHandler: ((req: Request) => Promise<Response>) | null = null;
