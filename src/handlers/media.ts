@@ -6,6 +6,25 @@ export interface MediaGroupItem {
   tag: string;
   mediaType: string;
   fileId: string;
+  figureSnippet?: string;
+  caption?: string;
+}
+
+/**
+ * Builds the response for a single media item (single tag + figure tag with caption).
+ */
+export function buildSingleMediaReply(item: MediaGroupItem): string {
+  return (
+    `🖼️ <b>${item.mediaType} Received!</b>\n\n` +
+    `<b>Single Tag (tap to copy):</b>\n` +
+    `<pre><code class="language-html">${escapeHtml(item.tag)}</code></pre>\n\n` +
+    (item.figureSnippet
+      ? `<b>Figure with Caption:</b>\n<pre><code class="language-html">${escapeHtml(
+          item.figureSnippet
+        )}</code></pre>\n\n`
+      : "") +
+    `💡 <i>Copy and paste this tag directly into your HTML text or template!</i>`
+  );
 }
 
 /**
@@ -36,9 +55,10 @@ export function buildMediaGroupReply(
 /**
  * Handles incoming media (photos, videos, animations, audio, voice)
  * and replies with ready-to-use Telegram HTML article tags:
- * - If MEDIA_GROUP_DO binding is configured and message is part of a media group,
- *   aggregates the album and sends a single message with <tg-collage> and <tg-slideshow>.
- * - Otherwise (or if single media), replies with individual tag and figure snippets.
+ * - If MEDIA_GROUP_DO binding is configured, aggregates media sent by the chat within the time window.
+ *   If only 1 media was sent, replies with single tag + figure.
+ *   If multiple media were sent, replies with <tg-collage> and <tg-slideshow>.
+ * - If MEDIA_GROUP_DO is not configured, replies immediately per message (fallback mode).
  */
 export async function handleMediaMessage(ctx: BotContext): Promise<void> {
   const msg = ctx.message;
@@ -89,42 +109,32 @@ export async function handleMediaMessage(ctx: BotContext): Promise<void> {
 
   if (!fileId) return;
 
-  // Check for media group: if MEDIA_GROUP_DO is configured, aggregate and send once!
-  if (msg.media_group_id && ctx.env?.MEDIA_GROUP_DO) {
-    const item: MediaGroupItem = {
-      messageId: msg.message_id,
-      tag: snippet,
-      mediaType,
-      fileId,
-    };
+  const item: MediaGroupItem = {
+    messageId: msg.message_id,
+    tag: snippet,
+    mediaType,
+    fileId,
+    figureSnippet,
+    caption: msg.caption,
+  };
 
+  // If MEDIA_GROUP_DO binding exists, aggregate media by chat over time!
+  if (ctx.env?.MEDIA_GROUP_DO && ctx.chat) {
     try {
-      const id = ctx.env.MEDIA_GROUP_DO.idFromName(msg.media_group_id);
+      const id = ctx.env.MEDIA_GROUP_DO.idFromName(`chat:${ctx.chat.id}`);
       const stub = ctx.env.MEDIA_GROUP_DO.get(id);
       await stub.addMediaItem({
-        chatId: ctx.chat!.id,
-        mediaGroupId: msg.media_group_id,
+        chatId: ctx.chat.id,
         item,
-        caption: msg.caption,
       });
       return;
     } catch (err) {
       console.error("Error delegating to MEDIA_GROUP_DO:", err);
-      // Fallback to individual handling on error
+      // Fallback to immediate reply on error
     }
   }
 
-  // Individual media reply (default or fallback)
-  const replyHtml =
-    `🖼️ <b>${mediaType} Received!</b>\n\n` +
-    `<b>Single Tag (tap to copy):</b>\n` +
-    `<pre><code class="language-html">${escapeHtml(snippet)}</code></pre>\n\n` +
-    (figureSnippet
-      ? `<b>Figure with Caption:</b>\n<pre><code class="language-html">${escapeHtml(
-          figureSnippet
-        )}</code></pre>\n\n`
-      : "") +
-    `💡 <i>Copy and paste this tag directly into your HTML text or template!</i>`;
-
+  // Fallback / individual mode (when MEDIA_GROUP_DO is not configured)
+  const replyHtml = buildSingleMediaReply(item);
   await ctx.reply(replyHtml, { parse_mode: "HTML" });
 }

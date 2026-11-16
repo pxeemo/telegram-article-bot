@@ -1,83 +1,110 @@
 import { DurableObject } from "cloudflare:workers";
 import { Env } from "../types";
-import { MediaGroupItem, buildMediaGroupReply } from "../handlers/media";
+import {
+  MediaGroupItem,
+  buildMediaGroupReply,
+  buildSingleMediaReply,
+} from "../handlers/media";
 
-interface MediaGroupState {
+interface ChatMediaState {
   chatId: number | string;
-  mediaGroupId: string;
   caption?: string;
   items: MediaGroupItem[];
-  timer?: any;
-  resolvers: Array<() => void>;
+  silenceTimer: any;
+  maxWindowTimer: any;
 }
 
 /**
- * Cloudflare Durable Object for handling media group aggregation.
- * Since a Durable Object is guaranteed to be a single in-memory instance for a given ID,
- * all concurrent webhook updates for the same album are processed in the same memory heap.
- * It waits for all items in the album to arrive before sending the message once (no message editing).
+ * Cloudflare Durable Object for time-based media aggregation.
+ * Keyed by chat ID (one instance per chat).
+ * Collects media sent within a time window (e.g. up to 10 items in under a minute),
+ * and once silence is detected:
+ * - If 1 media was sent: replies with single tag and figure tag.
+ * - If multiple media were sent: replies with <tg-collage> and <tg-slideshow>.
  */
 export class MediaGroupCoordinator extends DurableObject<Env> {
-  private buffer: MediaGroupState | null = null;
+  private state: ChatMediaState | null = null;
+  private waitPromiseResolver: (() => void) | null = null;
 
   async addMediaItem(params: {
     chatId: number | string;
-    mediaGroupId: string;
     item: MediaGroupItem;
-    caption?: string;
   }): Promise<void> {
-    if (!this.buffer) {
-      this.buffer = {
+    if (!this.state) {
+      this.state = {
         chatId: params.chatId,
-        mediaGroupId: params.mediaGroupId,
-        caption: params.caption,
+        caption: params.item.caption,
         items: [],
-        resolvers: [],
+        silenceTimer: null,
+        maxWindowTimer: null,
       };
+
+      // Keep Durable Object alive across the debounce window
+      if (this.ctx?.waitUntil) {
+        this.ctx.waitUntil(
+          new Promise<void>((resolve) => {
+            this.waitPromiseResolver = resolve;
+          })
+        );
+      }
+
+      // Hard safety timeout: flush after 60 seconds maximum from the first media
+      this.state.maxWindowTimer = setTimeout(() => {
+        this.flush();
+      }, 60000);
     }
 
-    if (params.caption && !this.buffer.caption) {
-      this.buffer.caption = params.caption;
+    if (params.item.caption && !this.state.caption) {
+      this.state.caption = params.item.caption;
     }
 
-    // Add item (deduplicating by fileId)
-    const existingIdx = this.buffer.items.findIndex(
+    // Deduplicate items by fileId
+    const existingIdx = this.state.items.findIndex(
       (i) => i.fileId === params.item.fileId
     );
     if (existingIdx >= 0) {
-      this.buffer.items[existingIdx] = params.item;
+      this.state.items[existingIdx] = params.item;
     } else {
-      this.buffer.items.push(params.item);
+      this.state.items.push(params.item);
     }
-    this.buffer.items.sort((a, b) => a.messageId - b.messageId);
+    this.state.items.sort((a, b) => a.messageId - b.messageId);
 
-    // Reset debounce timer: wait 1500ms after the latest item before sending
-    if (this.buffer.timer) {
-      clearTimeout(this.buffer.timer);
+    // If 10 items reached (Telegram collage limit), flush immediately!
+    if (this.state.items.length >= 10) {
+      this.flush();
+      return;
     }
 
-    this.buffer.timer = setTimeout(async () => {
-      await this.flush();
-    }, 1500);
+    // Reset silence debounce timer: wait 3 seconds of silence after the latest media
+    if (this.state.silenceTimer) {
+      clearTimeout(this.state.silenceTimer);
+    }
+    this.state.silenceTimer = setTimeout(() => {
+      this.flush();
+    }, 3000);
 
-    // Keep the webhook request alive until debounce flushes
-    await new Promise<void>((resolve) => {
-      this.buffer?.resolvers.push(resolve);
-    });
+    // Return immediately to keep input gates unblocked
   }
 
   async flush(): Promise<void> {
-    if (!this.buffer || this.buffer.items.length === 0) return;
+    if (!this.state || this.state.items.length === 0) {
+      this.cleanup();
+      return;
+    }
 
-    const { chatId, items, caption, resolvers } = this.buffer;
-    const replyHtml = buildMediaGroupReply(items, caption);
+    const { chatId, items, caption } = this.state;
+    this.cleanup();
+
+    // If only 1 media was sent in the window, offer single tag + figure
+    // If multiple media were sent, offer <tg-collage> and <tg-slideshow>
+    const replyHtml =
+      items.length === 1
+        ? buildSingleMediaReply(items[0])
+        : buildMediaGroupReply(items, caption);
+
     const botToken = this.env.BOT_TOKEN;
 
-    // Reset buffer state
-    this.buffer = null;
-
     try {
-      // Send the single complete collage and slideshow message once!
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -89,13 +116,16 @@ export class MediaGroupCoordinator extends DurableObject<Env> {
       });
     } catch (err) {
       console.error("Durable Object media group send error:", err);
-    } finally {
-      // Resolve all pending webhook requests
-      for (const res of resolvers) {
-        try {
-          res();
-        } catch {}
-      }
+    }
+  }
+
+  private cleanup(): void {
+    if (this.state?.silenceTimer) clearTimeout(this.state.silenceTimer);
+    if (this.state?.maxWindowTimer) clearTimeout(this.state.maxWindowTimer);
+    this.state = null;
+    if (this.waitPromiseResolver) {
+      this.waitPromiseResolver();
+      this.waitPromiseResolver = null;
     }
   }
 }
