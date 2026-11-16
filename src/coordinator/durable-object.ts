@@ -7,7 +7,6 @@ interface MediaGroupState {
   mediaGroupId: string;
   caption?: string;
   items: MediaGroupItem[];
-  sentMessageId?: number;
   timer?: any;
   resolvers: Array<() => void>;
 }
@@ -15,7 +14,8 @@ interface MediaGroupState {
 /**
  * Cloudflare Durable Object for handling media group aggregation.
  * Since a Durable Object is guaranteed to be a single in-memory instance for a given ID,
- * concurrent webhook updates for the same album are processed in the same memory heap.
+ * all concurrent webhook updates for the same album are processed in the same memory heap.
+ * It waits for all items in the album to arrive before sending the message once (no message editing).
  */
 export class MediaGroupCoordinator extends DurableObject<Env> {
   private buffer: MediaGroupState | null = null;
@@ -40,6 +40,7 @@ export class MediaGroupCoordinator extends DurableObject<Env> {
       this.buffer.caption = params.caption;
     }
 
+    // Add item (deduplicating by fileId)
     const existingIdx = this.buffer.items.findIndex(
       (i) => i.fileId === params.item.fileId
     );
@@ -50,16 +51,16 @@ export class MediaGroupCoordinator extends DurableObject<Env> {
     }
     this.buffer.items.sort((a, b) => a.messageId - b.messageId);
 
-    // Reset debounce timer
+    // Reset debounce timer: wait 1500ms after the latest item before sending
     if (this.buffer.timer) {
       clearTimeout(this.buffer.timer);
     }
 
     this.buffer.timer = setTimeout(async () => {
       await this.flush();
-    }, 1200);
+    }, 1500);
 
-    // Keep request alive until debounce flushes
+    // Keep the webhook request alive until debounce flushes
     await new Promise<void>((resolve) => {
       this.buffer?.resolvers.push(resolve);
     });
@@ -68,64 +69,33 @@ export class MediaGroupCoordinator extends DurableObject<Env> {
   async flush(): Promise<void> {
     if (!this.buffer || this.buffer.items.length === 0) return;
 
-    const { chatId, items, caption, sentMessageId, resolvers } = this.buffer;
+    const { chatId, items, caption, resolvers } = this.buffer;
     const replyHtml = buildMediaGroupReply(items, caption);
     const botToken = this.env.BOT_TOKEN;
 
-    const resolveAll = () => {
+    // Reset buffer state
+    this.buffer = null;
+
+    try {
+      // Send the single complete collage and slideshow message once!
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: replyHtml,
+          parse_mode: "HTML",
+        }),
+      });
+    } catch (err) {
+      console.error("Durable Object media group send error:", err);
+    } finally {
+      // Resolve all pending webhook requests
       for (const res of resolvers) {
         try {
           res();
         } catch {}
       }
-      if (this.buffer) {
-        this.buffer.resolvers = [];
-      }
-    };
-
-    try {
-      if (sentMessageId) {
-        // Edit existing message
-        const res = await fetch(
-          `https://api.telegram.org/bot${botToken}/editMessageText`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: chatId,
-              message_id: sentMessageId,
-              text: replyHtml,
-              parse_mode: "HTML",
-            }),
-          }
-        );
-        const data: any = await res.json();
-        if (data.ok) return;
-      }
-
-      // Send new message
-      const res = await fetch(
-        `https://api.telegram.org/bot${botToken}/sendMessage`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: replyHtml,
-            parse_mode: "HTML",
-          }),
-        }
-      );
-      const data: any = await res.json();
-      if (data.ok && data.result?.message_id) {
-        if (this.buffer) {
-          this.buffer.sentMessageId = data.result.message_id;
-        }
-      }
-    } catch (err) {
-      console.error("Durable Object media group flush error:", err);
-    } finally {
-      resolveAll();
     }
   }
 }

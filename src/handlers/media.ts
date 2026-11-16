@@ -1,6 +1,5 @@
 import { BotContext } from "../types";
 import { escapeHtml } from "../utils";
-import { handleMediaGroupWithKv } from "../coordinator/kv";
 
 export interface MediaGroupItem {
   messageId: number;
@@ -37,9 +36,9 @@ export function buildMediaGroupReply(
 /**
  * Handles incoming media (photos, videos, animations, audio, voice)
  * and replies with ready-to-use Telegram HTML article tags:
- * - If MEDIA_GROUP_DO or MEDIA_GROUP_KV binding is configured and message is part of a media group,
- *   aggregates the album into <tg-collage> and <tg-slideshow>.
- * - Otherwise (or if single media), handles individually.
+ * - If MEDIA_GROUP_DO binding is configured and message is part of a media group,
+ *   aggregates the album and sends a single message with <tg-collage> and <tg-slideshow>.
+ * - Otherwise (or if single media), replies with individual tag and figure snippets.
  */
 export async function handleMediaMessage(ctx: BotContext): Promise<void> {
   const msg = ctx.message;
@@ -90,8 +89,8 @@ export async function handleMediaMessage(ctx: BotContext): Promise<void> {
 
   if (!fileId) return;
 
-  // Check for media group: if an optional coordinator binding exists, aggregate!
-  if (msg.media_group_id) {
+  // Check for media group: if MEDIA_GROUP_DO is configured, aggregate and send once!
+  if (msg.media_group_id && ctx.env?.MEDIA_GROUP_DO) {
     const item: MediaGroupItem = {
       messageId: msg.message_id,
       tag: snippet,
@@ -99,42 +98,23 @@ export async function handleMediaMessage(ctx: BotContext): Promise<void> {
       fileId,
     };
 
-    // 1. Check for Durable Object binding
-    if (ctx.env?.MEDIA_GROUP_DO) {
-      try {
-        const id = ctx.env.MEDIA_GROUP_DO.idFromName(msg.media_group_id);
-        const stub = ctx.env.MEDIA_GROUP_DO.get(id);
-        await stub.addMediaItem({
-          chatId: ctx.chat!.id,
-          mediaGroupId: msg.media_group_id,
-          item,
-          caption: msg.caption,
-        });
-        return;
-      } catch (err) {
-        console.error("Error delegating to MEDIA_GROUP_DO:", err);
-      }
+    try {
+      const id = ctx.env.MEDIA_GROUP_DO.idFromName(msg.media_group_id);
+      const stub = ctx.env.MEDIA_GROUP_DO.get(id);
+      await stub.addMediaItem({
+        chatId: ctx.chat!.id,
+        mediaGroupId: msg.media_group_id,
+        item,
+        caption: msg.caption,
+      });
+      return;
+    } catch (err) {
+      console.error("Error delegating to MEDIA_GROUP_DO:", err);
+      // Fallback to individual handling on error
     }
-
-    // 2. Check for KV Namespace binding
-    if (ctx.env?.MEDIA_GROUP_KV) {
-      try {
-        await handleMediaGroupWithKv(
-          ctx,
-          ctx.env.MEDIA_GROUP_KV,
-          msg.media_group_id,
-          item,
-          msg.caption
-        );
-        return;
-      } catch (err) {
-        console.error("Error delegating to MEDIA_GROUP_KV:", err);
-      }
-    }
-
-    // 3. Fallback: Neither binding configured -> handle individually
   }
 
+  // Individual media reply (default or fallback)
   const replyHtml =
     `🖼️ <b>${mediaType} Received!</b>\n\n` +
     `<b>Single Tag (tap to copy):</b>\n` +

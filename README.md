@@ -85,7 +85,33 @@ wrangler secret put BOT_TOKEN
 wrangler secret put SECRET_TOKEN  # Optional
 ```
 
-### 3. Register the Telegram Webhook
+### 3. Optional: Enable Media Group (Album) Aggregation with Durable Objects
+By default, incoming media (even in albums) are replied to individually. To aggregate Telegram albums into a single message offering `<tg-collage>` and `<tg-slideshow>`, enable Cloudflare Durable Objects.
+
+On Cloudflare's **Free Plan**, Durable Objects require the `new_sqlite_classes` migration tag. Add the following to your `wrangler.jsonc`:
+
+```jsonc
+{
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MEDIA_GROUP_DO",
+        "class_name": "MediaGroupCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MediaGroupCoordinator"]
+    }
+  ]
+}
+```
+
+Then deploy with `bun run deploy`. The bot will automatically wait for all items of an album to arrive and reply once with both collage and slideshow tags.
+
+### 4. Register the Telegram Webhook
 
 #### Option A: Built-in Helper Endpoint
 Open your deployed worker URL in your browser:

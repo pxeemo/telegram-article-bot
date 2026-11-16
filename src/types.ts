@@ -17,11 +17,6 @@ export interface Env {
   SECRET_TOKEN?: string;
 
   /**
-   * Optional Cloudflare KV Namespace for media group aggregation
-   */
-  MEDIA_GROUP_KV?: KVNamespace;
-
-  /**
    * Optional Cloudflare Durable Object Namespace for media group aggregation
    */
   MEDIA_GROUP_DO?: DurableObjectNamespace<MediaGroupCoordinator>;
