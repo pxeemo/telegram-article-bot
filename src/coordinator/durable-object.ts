@@ -75,13 +75,13 @@ export class MediaGroupCoordinator extends DurableObject<Env> {
       return;
     }
 
-    // Reset silence debounce timer: wait 3 seconds of silence after the latest media
+    // Reset silence debounce timer: wait 1 second of silence after the latest media
     if (this.state.silenceTimer) {
       clearTimeout(this.state.silenceTimer);
     }
     this.state.silenceTimer = setTimeout(() => {
       this.flush();
-    }, 3000);
+    }, 1000);
 
     // Return immediately to keep input gates unblocked
   }
