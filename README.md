@@ -28,9 +28,19 @@ A Telegram bot built with **grammY** and **TypeScript**, powered by **Bun**, and
      - Or copy any message link (`t.me/c/1234567890/42`) and prepend `-100` to the first number.
    - **In-Channel Permission Verification:** Checks directly in the target channel via `getChatMember` whether the caller is the channel Owner (`creator`) or an Administrator with `can_post_messages` enabled.
    - **Native Scheduled Messages:** Schedule your `/send` command using Telegram's native message scheduler to publish automatically at a future time.
-4. **Commands:**
+4. **Update Existing Posts (`/edit`):**
+   - Reply to any rendered bot preview message with `/edit <message-link>` to update an existing channel post.
+   - **Supported link formats:**
+     - Public channel: `/edit https://t.me/my_channel/123`
+     - Private channel: `/edit https://t.me/c/1234567890/123`
+     - Direct identifier: `/edit @my_channel 123` or `/edit -1001234567890 123`
+   - Updates articles (rich messages), text posts, and media captions directly in place.
+   - Verifies channel administrator permissions (`can_edit_messages` / `can_post_messages`).
+5. **Commands:**
    - `/start`: Simple and brief rich introduction with GitHub source link.
    - `/help`: General usage guide, media workflow, reply options, and private channel instructions.
+   - `/send`: Publish a rendered preview to a channel.
+   - `/edit`: Update an existing channel post with a replied preview message.
    - `/cheatsheet`: Interactive HTML cheatsheet with collapsible categories (`<details>`) and clean code snippets without HTML comments.
    - `/id`: Get user ID, chat ID, or reply to a forwarded post to get channel details.
 

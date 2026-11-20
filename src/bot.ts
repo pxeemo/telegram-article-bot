@@ -4,6 +4,7 @@ import { startCommand } from "./commands/start";
 import { helpCommand } from "./commands/help";
 import { cheatsheetCommand } from "./commands/cheatsheet";
 import { sendCommand } from "./commands/send";
+import { editCommand } from "./commands/edit";
 import { idCommand } from "./commands/id";
 import {
   handleTextMessage,
@@ -30,6 +31,7 @@ export function createBot(env: Env): Bot<BotContext> {
   bot.command("cheatsheet", cheatsheetCommand);
   bot.command("id", idCommand);
   bot.command("send", sendCommand);
+  bot.command("edit", editCommand);
 
   // Register handlers:
   // 1. Direct text messages (HTML rich article templates)

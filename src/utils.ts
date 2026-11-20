@@ -26,7 +26,7 @@ export function parseTelegramMessageLink(
 
   // Match private channel links: https://t.me/c/1234567890/123 or https://t.me/c/1234567890
   const privateMatch = trimmed.match(
-    /^(?:https?:\/\/)?(?:www\.)?t\.me\/c\/(\d+)(?:\/(\d+))?(?:\/(\d+))?\/?$/i
+    /^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\/c\/(\d+)(?:\/(\d+))?(?:\/(\d+))?\/?$/i
   );
   if (privateMatch) {
     const chat = `-100${privateMatch[1]}`;
@@ -40,7 +40,7 @@ export function parseTelegramMessageLink(
 
   // Match public channel/chat links: https://t.me/channel/123 or https://t.me/channel
   const publicMatch = trimmed.match(
-    /^(?:https?:\/\/)?(?:www\.)?t\.me\/([a-zA-Z0-9_]+)(?:\/(\d+))?(?:\/(\d+))?\/?$/i
+    /^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\/([a-zA-Z0-9_]+)(?:\/(\d+))?(?:\/(\d+))?\/?$/i
   );
   if (publicMatch) {
     const chat = `@${publicMatch[1]}`;
@@ -149,30 +149,93 @@ export function parseTargetAndReply(input: string): TargetAndReply {
   };
 }
 
+export interface EditTarget {
+  targetChat: string;
+  messageId: number;
+}
+
+/**
+ * Parses user input for /edit to extract target channel/chat and target message ID.
+ * Supports:
+ * - Public link: https://t.me/channel/123 or t.me/channel/123
+ * - Private link: https://t.me/c/1234567890/123 or t.me/c/1234567890/123
+ * - Forum topics link: https://t.me/channel/10/123 or https://t.me/c/1234567890/10/123
+ * - Slash syntax: @channel/123 or -1001234567890/123
+ * - Space syntax: @channel 123 or -1001234567890 123
+ */
+export function parseEditLink(input: string): EditTarget | null {
+  const trimmed = input.trim().split("?")[0].split("#")[0];
+  if (!trimmed) return null;
+
+  // 1. Try parsing as Telegram message link (e.g. https://t.me/channel/123 or https://t.me/c/1234567890/123)
+  const linkParsed = parseTelegramMessageLink(trimmed);
+  if (linkParsed && linkParsed.chat && linkParsed.messageId) {
+    return {
+      targetChat: linkParsed.chat,
+      messageId: linkParsed.messageId,
+    };
+  }
+
+  // 2. Handle format: @channel/123 or -1001234567890/123
+  const slashMatch = trimmed.match(/^(@?[a-zA-Z0-9_-]+)\/(\d+)$/);
+  if (slashMatch) {
+    return {
+      targetChat: normalizeTargetChat(slashMatch[1]),
+      messageId: parseInt(slashMatch[2], 10),
+    };
+  }
+
+  // 3. Handle format: @channel 123 or -1001234567890 123
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 2 && /^\d+$/.test(parts[1])) {
+    return {
+      targetChat: normalizeTargetChat(parts[0]),
+      messageId: parseInt(parts[1], 10),
+    };
+  }
+
+  return null;
+}
+
 export interface PermissionCheckResult {
   allowed: boolean;
   reason?: string;
 }
 
 /**
- * Checks directly inside the target channel or chat if the user has message posting access.
+ * Checks directly inside the target channel or chat if the user has message posting or editing access.
  * No hardcoded or fixed user IDs are needed.
  */
 export async function checkUserChatPermissions(
   api: Api,
   targetChat: string | number,
-  userId: number
+  userId: number,
+  action: "post" | "edit" = "post"
 ): Promise<PermissionCheckResult> {
   try {
     const member = await api.getChatMember(targetChat, userId);
 
-    // 1. Channel/Chat Owner (Creator) has full message posting access
+    // 1. Channel/Chat Owner (Creator) has full message posting & editing access
     if (member.status === "creator") {
       return { allowed: true };
     }
 
     // 2. Administrator
     if (member.status === "administrator") {
+      if (action === "edit") {
+        if (member.can_edit_messages === true || member.can_post_messages === true) {
+          return { allowed: true };
+        }
+        if (member.can_edit_messages === false && member.can_post_messages === false) {
+          return {
+            allowed: false,
+            reason:
+              "You are an administrator in this channel, but your administrator role does not have permission to edit messages.",
+          };
+        }
+        return { allowed: true };
+      }
+
       // In broadcast channels, Telegram explicitly checks `can_post_messages`
       if (member.can_post_messages === true) {
         return { allowed: true };
@@ -194,7 +257,7 @@ export async function checkUserChatPermissions(
         return {
           allowed: false,
           reason:
-            "You are only a subscriber/member in this channel. Only administrators with message posting rights can publish messages.",
+            `You are only a subscriber/member in this channel. Only administrators with message ${action === "edit" ? "editing" : "posting"} rights can ${action === "edit" ? "update" : "publish"} messages.`,
         };
       }
       return { allowed: true };
@@ -223,6 +286,101 @@ export async function checkUserChatPermissions(
       reason: `Could not verify your permissions: ${description}. Please ensure the bot is added as an Administrator in ${targetChat}.`,
     };
   }
+}
+
+/**
+ * Converts Telegram RichMessage blocks received from an update into InputRichBlock format
+ * suitable for API methods like editMessageText.
+ */
+export function convertRichBlocksToInput(blocks: any[]): any[] {
+  if (!Array.isArray(blocks)) return blocks;
+
+  return blocks.map((block) => {
+    if (!block || typeof block !== "object") return block;
+
+    switch (block.type) {
+      case "photo": {
+        let mediaId = "";
+        if (Array.isArray(block.photo) && block.photo.length > 0) {
+          mediaId = block.photo[block.photo.length - 1].file_id;
+        } else if (typeof block.photo === "string") {
+          mediaId = block.photo;
+        } else if (block.photo?.file_id) {
+          mediaId = block.photo.file_id;
+        } else if (block.photo?.media) {
+          mediaId = block.photo.media;
+        }
+        return {
+          ...block,
+          photo: { type: "photo", media: mediaId },
+        };
+      }
+      case "video": {
+        const mediaId = block.video?.file_id || block.video?.media || block.video;
+        return {
+          ...block,
+          video: { type: "video", media: mediaId },
+        };
+      }
+      case "animation": {
+        const mediaId =
+          block.animation?.file_id ||
+          block.animation?.media ||
+          block.animation;
+        return {
+          ...block,
+          animation: { type: "animation", media: mediaId },
+        };
+      }
+      case "audio": {
+        const mediaId = block.audio?.file_id || block.audio?.media || block.audio;
+        return {
+          ...block,
+          audio: { type: "audio", media: mediaId },
+        };
+      }
+      case "document": {
+        const mediaId =
+          block.document?.file_id || block.document?.media || block.document;
+        return {
+          ...block,
+          document: { type: "document", media: mediaId },
+        };
+      }
+      case "voice_note": {
+        const mediaId =
+          block.voice_note?.file_id ||
+          block.voice_note?.media ||
+          block.voice_note;
+        return {
+          ...block,
+          voice_note: { type: "voice", media: mediaId },
+        };
+      }
+      case "collage":
+      case "slideshow":
+      case "details":
+      case "block_quotation": {
+        return {
+          ...block,
+          blocks: convertRichBlocksToInput(block.blocks),
+        };
+      }
+      case "list": {
+        return {
+          ...block,
+          items: Array.isArray(block.items)
+            ? block.items.map((item: any) => ({
+                ...item,
+                blocks: convertRichBlocksToInput(item.blocks),
+              }))
+            : block.items,
+        };
+      }
+      default:
+        return block;
+    }
+  });
 }
 
 export interface ProcessedTemplate {

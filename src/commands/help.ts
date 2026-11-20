@@ -26,12 +26,22 @@ export const GENERAL_HELP_TEXT = `
 
 <p>💡 <b>Tip:</b> You can schedule the <code>/send</code> command to publish automatically at a future time.</p>
 
+<h3>3. Update Posts (/edit)</h3>
+<p>Reply to any rendered preview with:</p>
+<pre><code>/edit &lt;message-link&gt;</code></pre>
+<p><b>Examples:</b></p>
+<pre><code>/edit https://t.me/channel/123
+/edit https://t.me/c/1234567890/123
+/edit @channel 123</code></pre>
+
 <tg-button-row align="center">
   <tg-button type="url" style="primary" url="https://github.com/pxeemo/telegram-article-bot">Open Source on GitHub</tg-button>
 </tg-button-row>
 
 <h3>Commands</h3>
-<p>• /cheatsheet — Full HTML tags cheatsheet<br/>
+<p>• /send — Publish a rendered post to a channel<br/>
+• /edit — Update an existing sent post with a rendered post<br/>
+• /cheatsheet — Full HTML tags cheatsheet<br/>
 • /id — Get chat or forwarded channel ID<br/>
 • /help — Show this guide</p>
 `;
